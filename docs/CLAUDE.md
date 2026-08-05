@@ -26,6 +26,7 @@ des règles paramétrables par application.
 | `docs/AUTH.md` | Conception du futur module d'authentification (2FA), et comment le code actuel doit s'y préparer |
 | `docs/FRONTEND.md` | Structure de l'application Next.js |
 | `docs/DEPLOYMENT.md` | Docker Compose, agents de collecte, variables d'environnement |
+| `docs/AGENT_SETUP.md` | Détaille, étape par étape, comment un agent de collecte de logs est créé puis déployé |
 
 **Règle impérative** : avant d'implémenter une fonctionnalité touchant à la config,
 aux alertes, aux parseurs ou à l'auth, relire le document correspondant. Ces
@@ -35,7 +36,7 @@ générales et l'organisation du dépôt).
 
 ## 3. Stack technique (imposée)
 
-- **Frontend** : Next.js 14+ (App Router), TypeScript, Tailwind CSS
+- **Frontend** : Next.js 16+ (App Router), TypeScript, Tailwind CSS
 - **Backend** : NestJS, TypeScript
 - **Stockage logs** : OpenSearch (ou Elasticsearch, API compatible)
 - **Stockage métier/config** : PostgreSQL (via Prisma ou TypeORM — voir `docs/DATA_MODEL.md`)
