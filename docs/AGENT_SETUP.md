@@ -107,9 +107,71 @@ un utilisateur humain.
 
 ## À refaire pour chaque nouvelle appli/serveur
 
-Seules les étapes 3 à 7 sont répétées à chaque ajout. Les étapes 1 et 2 ne
+Seules les étapes 3 à 8 sont répétées à chaque ajout. Les étapes 1 et 2 ne
 sont refaites que si un nouveau **type** d'appli apparaît (voir la section
-"Ajouter un nouveau type d'appli" dans `LOG_PARSERS.md`).
+"Ajouter un nouveau type d'appli" dans `LOG_PARSERS.md`). L'étape 8 (services
+à vérifier) n'est nécessaire que si l'application dépend de services
+systemd/pm2 dont vous voulez suivre l'état — une appli purement basée sur les
+logs peut s'en passer.
+
+## Étape 8 — Le script de vérification des services (statut up/down)
+
+En plus de l'agent Vector (qui suit les fichiers de log), un **second
+script**, indépendant, vérifie périodiquement l'état des services dont
+dépend l'application (ex. `file-manager.service`, `httpd.service`,
+`mysqld.service` pour `filemanager`). Il est installé par le même
+`install.sh` (ou un script compagnon `install-status-checker.sh`), sur le
+même serveur, et réutilise le même token d'agent.
+
+### Ce que fait ce script
+
+`agents/check-services.sh`, exécuté par un timer systemd toutes les
+**30 secondes par défaut** (valeur reprise de
+`GlobalConfig.serviceCheckDefaults.checkInterval`, ajustable par service) :
+
+```bash
+#!/bin/bash
+# Lit la liste des services à vérifier depuis le cache local
+SERVICES_FILE="/etc/monitoring-agent/services.conf"
+PAYLOAD="[]"
+
+while read -r service; do
+  state=$(systemctl is-active "$service" 2>/dev/null || echo "unknown")
+  PAYLOAD=$(echo "$PAYLOAD" | jq --arg name "$service" --arg state "$state" \
+    '. + [{serviceName: $name, state: $state, checkedAt: now | todate}]')
+done < "$SERVICES_FILE"
+
+curl -s -X POST "${BACKEND_URL}/api/ingestion/status" \
+  -H "Authorization: Bearer ${AGENT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{\"applicationId\": \"${APPLICATION_ID}\", \"server\": \"${SERVER_NAME}\", \"checks\": ${PAYLOAD}}"
+```
+
+Un second timer, plus espacé (**toutes les 5 minutes par défaut**), exécute
+`agents/refresh-services.sh` : il appelle
+`GET /api/applications/<id>/services`, avec le même token, et régénère
+`/etc/monitoring-agent/services.conf`. C'est ce qui permet d'ajouter ou
+retirer un service surveillé depuis l'interface web **sans repasser par le
+serveur** — le script s'auto-met-à-jour au prochain rafraîchissement.
+
+### Installation
+
+```bash
+./install.sh spring-boot filemanager https://monitoring.exemple.com <token> \
+  --services file-manager.service,httpd.service,mysqld.service
+```
+
+Le paramètre `--services` sert uniquement d'amorce (premier peuplement du
+cache avant le premier rafraîchissement automatique) — la liste de référence
+reste toujours celle déclarée dans l'interface web via
+`POST /api/applications/:id/services`.
+
+### Deux timers systemd installés
+
+| Timer | Fréquence | Rôle |
+|---|---|---|
+| `monitoring-status-check.timer` | 30 s (par défaut) | exécute `check-services.sh`, envoie l'état courant |
+| `monitoring-status-refresh.timer` | 5 min (par défaut) | exécute `refresh-services.sh`, resynchronise la liste des services à vérifier |
 
 ## Point de vigilance : PM2 et permissions
 

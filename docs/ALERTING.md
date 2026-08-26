@@ -61,7 +61,44 @@ déclenche une alerte. **Cette règle doit être créée par défaut à la créa
 de chaque appli** (via `GlobalConfig.analyzerDefaults`), car c'est le type de
 panne le plus facilement invisible (voir remarque de conception initiale).
 
-### 1.4 Extension future
+### 1.4 `service-status` (up/down d'un service systemd, pm2, etc.)
+```json
+{
+  "type": "service-status",
+  "params": {
+    "monitoredServiceId": "…",
+    "expectedState": "active",
+    "severity": "critical"
+  }
+}
+```
+Créé automatiquement pour chaque `MonitoredService` marqué `critical: true`
+(voir `DATA_MODEL.md`). Évalué en streaming, à chaque `ServiceStatusEvent`
+reçu : si `newState !== expectedState`, déclenche une alerte immédiate. C'est
+la règle qui répond directement au besoin "savoir dès que `httpd.service` ou
+`mysqld.service` tombe, sans attendre un signalement".
+
+### 1.5 `service-silence` (absence de vérification reçue)
+```json
+{
+  "type": "service-silence",
+  "params": {
+    "monitoredServiceId": "…",
+    "maxSilence": "2m",
+    "severity": "critical"
+  }
+}
+```
+Même principe que `silence` (§1.3) mais appliqué à `MonitoredService.lastCheckedAt`
+plutôt qu'aux logs : si le backend ne reçoit plus de vérification pour ce
+service dans le délai attendu (par défaut un peu plus de deux fois l'intervalle
+de check, soit ~1 min pour un `checkInterval` de 30 s), c'est potentiellement
+le serveur ou l'agent lui-même qui est indisponible — à traiter en priorité
+puisqu'on ne peut alors même plus savoir si le service réel tourne ou non.
+Créé automatiquement en même temps que `service-status`, pour chaque service
+critique.
+
+### 1.6 Extension future
 Nouveau type d'analyseur = nouvelle classe implémentant :
 ```ts
 interface Analyzer {
@@ -117,7 +154,23 @@ temporairement ; les canaux non listés (ex : `email`, `visual`) restent
 actifs. Le `Notifier` vérifie cette config avant envoi, pas au niveau du
 moteur de règles (la détection continue, seule la notification est filtrée).
 
-## 5. Test manuel
+## 5. Statut agrégé de l'application
+
+Le badge de statut d'une application (dashboard, voir `FRONTEND.md`) combine
+deux sources, indépendamment de leur origine :
+- les `AlertEvent` actifs issus des analyseurs de logs (`level-threshold`,
+  `pattern-rate`, `silence`)
+- l'état courant des `MonitoredService` marqués `critical: true`
+
+Règle d'agrégation : l'application est **critique** si au moins une alerte
+active de sévérité `critical` existe (log ou service), **warning** s'il n'y a
+que des alertes de sévérité `warning`, sinon **ok**. Un service non-critique
+(`critical: false`) qui tombe génère bien un `AlertEvent` et une notification
+selon les canaux configurés, mais ne fait pas basculer le badge global de
+l'application en critique — pratique pour un service annexe dont la panne
+mérite d'être su mais ne bloque pas le service rendu.
+
+## 6. Test manuel
 
 `POST /api/rules/:id/test` évalue une règle immédiatement sans persister de
 vrai `AlertEvent` ni notifier personne — retourne juste le résultat calculé,

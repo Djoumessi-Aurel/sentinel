@@ -40,7 +40,8 @@ model GlobalConfig {
   id                String   @id @default("singleton") // ligne unique
   displayColors      Json     // { background, text, levelColors: { INFO, WARN, ERROR, ... } }
   alertChannelsDefault Json   // { visual: true, sound: true, email: false, sms: false }
-  analyzerDefaults   Json     // liste des analyseurs activés par défaut (ex: generic-error)
+  analyzerDefaults   Json     // liste des analyseurs activés par défaut (ex: generic-error, silence)
+  serviceCheckDefaults Json   // { checkInterval: 30, criticalByDefault: true } — voir CONFIG_MANAGEMENT.md
   updatedAt          DateTime @updatedAt
 }
 
@@ -77,6 +78,31 @@ model AlertEvent {
   triggeredAt    DateTime @default(now())
   resolvedAt     DateTime?
   channelsNotified Json   // { visual: true, email: true, sms: false, ... } + statut d'envoi par canal
+}
+
+model MonitoredService {
+  id             String   @id @default(uuid())
+  applicationId  String
+  application    Application @relation(fields: [applicationId], references: [id])
+  name           String   // nom de l'unité à vérifier, ex: "httpd.service"
+  checkType      String   @default("systemd") // extensible : 'systemd' | 'pm2' | 'tcp-port' | 'http'
+  critical       Boolean  @default(true)       // true par défaut : impacte le statut global de l'appli si down
+  checkInterval  Int      @default(30)         // secondes ; hérité de la config globale par défaut (voir CONFIG_MANAGEMENT.md)
+  lastState      String?  // 'active' | 'inactive' | 'failed' | 'unknown'
+  lastCheckedAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  events         ServiceStatusEvent[]
+}
+
+model ServiceStatusEvent {
+  id                 String   @id @default(uuid())
+  monitoredServiceId String
+  monitoredService   MonitoredService @relation(fields: [monitoredServiceId], references: [id])
+  previousState      String?
+  newState           String
+  changedAt          DateTime @default(now())
 }
 
 model IngestionAgentToken {
@@ -126,7 +152,29 @@ Phase 1 (commencer par un index unique, séparer si besoin).
 - `metadata` accueille les champs spécifiques extraits par un parseur (ex :
   `smsType: 'card' | 'pin'`, `outcome: 'success' | 'failure'` pour distribcard).
 
-## 3. Politique de rétention (ILM OpenSearch)
+## 3. Statut des services (up/down)
+
+`MonitoredService` est distinct de `Application` : une application peut
+dépendre de plusieurs services (ex. `filemanager` → `file-manager.service`,
+`httpd.service`, `mysqld.service`), chacun vérifié et suivi indépendamment.
+
+- `lastState` / `lastCheckedAt` sont mis à jour à **chaque** vérification
+  reçue (toutes les 30 s par défaut), pour permettre la détection de silence
+  (absence de vérification = agent ou serveur potentiellement down).
+- `ServiceStatusEvent` n'enregistre en revanche que les **transitions**
+  d'état (ex. `active` → `failed`), pas chaque vérification — le volume
+  reste donc faible même avec un intervalle court, contrairement aux logs qui
+  vont dans OpenSearch.
+- `critical: true` par défaut à la création d'un `MonitoredService` : un
+  service tout juste ajouté est considéré comme bloquant pour le statut
+  global de l'application tant qu'on ne l'a pas explicitement marqué comme
+  secondaire.
+- `checkInterval: 30` (secondes) par défaut, copié depuis
+  `GlobalConfig.serviceCheckDefaults.checkInterval` à la création — modifiable
+  ensuite service par service, même logique de copie explicite que le reste
+  de la config (voir `CONFIG_MANAGEMENT.md`).
+
+## 4. Politique de rétention (ILM OpenSearch)
 
 À définir en config globale (Phase 3) : nombre de jours en index "chaud"
 (recherche rapide), puis purge ou passage en froid/archive. Valeur par défaut

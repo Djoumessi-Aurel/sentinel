@@ -77,13 +77,25 @@ Deux sections distinctes dans le frontend (voir `FRONTEND.md`) :
 - **Alertes par défaut** : canaux activés par défaut (visuel/son/email/SMS) et
   analyseurs activés par défaut pour toute nouvelle appli (au minimum
   `level-threshold` sur ERROR et `silence`, activés par défaut dès le départ).
+- **Vérification de services par défaut** (`serviceCheckDefaults`) :
+  intervalle de vérification par défaut fixé à **30 secondes**, et tout
+  nouveau `MonitoredService` est **critique par défaut** (`critical: true`) —
+  un service qu'on prend la peine d'ajouter est considéré comme important
+  tant qu'on ne l'a pas explicitement rétrogradé. Ces deux valeurs sont
+  éditables dans cet écran, comme le reste de la config globale.
 
 ## 5. Écran de configuration par appli
 
 Même structure que la config globale (couleurs + canaux), plus les sections
 propres à l'appli : liste des `AnalyzerRule` (avec formulaire adapté au
-`type` choisi) et `quietHours`. Le formulaire de couleurs par appli affiche
-en permanence un indicateur "différent de la config globale actuelle" ou
-"aligné" (comparaison simple des deux objets JSON) pour que l'utilisateur
+`type` choisi), liste des `MonitoredService` (voir `FRONTEND.md`,
+`ServiceStatusList`) et `quietHours`. Le formulaire de couleurs par appli
+affiche en permanence un indicateur "différent de la config globale actuelle"
+ou "aligné" (comparaison simple des deux objets JSON) pour que l'utilisateur
 sache en un coup d'œil quelles applis ont dérivé de la config globale — utile
 avant de décider quoi cocher au moment de généraliser.
+
+Les `MonitoredService` eux-mêmes (comme les `AnalyzerRule`) ne sont **pas**
+concernés par le bouton "généraliser" (§3) : ce sont des éléments propres à
+chaque appli (une appli n'a pas les mêmes services qu'une autre), pas des
+préférences d'affichage ou de canaux à propager.

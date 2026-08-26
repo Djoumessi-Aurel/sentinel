@@ -24,9 +24,9 @@ des règles paramétrables par application.
 | `docs/ALERTING.md` | Moteur de règles, notificateurs, anti-spam, détection de silence |
 | `docs/CONFIG_MANAGEMENT.md` | Logique config globale / config par appli, bouton « généraliser » |
 | `docs/AUTH.md` | Conception du futur module d'authentification (2FA), et comment le code actuel doit s'y préparer |
+| `docs/AGENT_SETUP.md` | Guide pas-à-pas de création et déploiement des agents (logs + vérification de statut des services) |
 | `docs/FRONTEND.md` | Structure de l'application Next.js |
 | `docs/DEPLOYMENT.md` | Docker Compose, agents de collecte, variables d'environnement |
-| `docs/AGENT_SETUP.md` | Détaille, étape par étape, comment un agent de collecte de logs est créé puis déployé |
 
 **Règle impérative** : avant d'implémenter une fonctionnalité touchant à la config,
 aux alertes, aux parseurs ou à l'auth, relire le document correspondant. Ces
@@ -36,7 +36,7 @@ générales et l'organisation du dépôt).
 
 ## 3. Stack technique (imposée)
 
-- **Frontend** : Next.js 16+ (App Router), TypeScript, Tailwind CSS
+- **Frontend** : Next.js 14+ (App Router), TypeScript, Tailwind CSS
 - **Backend** : NestJS, TypeScript
 - **Stockage logs** : OpenSearch (ou Elasticsearch, API compatible)
 - **Stockage métier/config** : PostgreSQL (via Prisma ou TypeORM — voir `docs/DATA_MODEL.md`)
@@ -89,9 +89,10 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
    coder une route "en dur" sans guard, même provisoire.
 
 4. **Tout ce qui peut échouer silencieusement doit avoir un mécanisme de
-   détection.** En particulier : un agent qui cesse d'envoyer des logs doit
-   déclencher une alerte de silence (voir `docs/ALERTING.md`), pas juste
-   arrêter de logguer sans bruit.
+   détection.** En particulier : un agent qui cesse d'envoyer des logs, ou un
+   service dont le statut n'est plus vérifié, doit déclencher une alerte de
+   silence (voir `docs/ALERTING.md`, règles `silence` et `service-silence`),
+   pas juste arrêter de remonter de l'information sans bruit.
 
 5. **Pas de secret en dur.** Toute donnée sensible (identifiants SMTP, clé API
    SMS, credentials OpenSearch/Postgres) passe par variables d'environnement,
@@ -121,6 +122,8 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 5. Stockage des `LogEntry` dans OpenSearch
 6. Vue frontend : liste des applis, viewer de logs temps réel (WebSocket), couleurs par niveau
 7. Règle générique "ERROR → alerte" + alerte visuelle uniquement
+8. `MonitoredService` + script de vérification de statut (systemd), règles
+   `service-status`/`service-silence`, badge de statut agrégé par appli
 
 **Phase 2**
 1. Parseurs Java simple, Node/PM2, React/Nginx

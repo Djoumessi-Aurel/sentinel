@@ -22,7 +22,19 @@
 [Moteur de règles] ──► [AlertEvent] ──► [Notifier(s)] : email, SMS, visuel (WS), son (client)
 ```
 
-## 2. Agents de collecte
+## 2. Vérification du statut des services (up/down)
+
+En complément de la collecte de logs, chaque serveur applicatif exécute un
+second script (indépendant de l'agent Vector) qui vérifie périodiquement
+l'état des services dont dépend l'application (ex. `httpd.service`,
+`mysqld.service` pour `filemanager`) et envoie le résultat au backend. Détail
+complet dans `AGENT_SETUP.md` (installation) et `ALERTING.md` (règles
+`service-status` / `service-silence` associées). Ce mécanisme est
+volontairement séparé de l'ingestion de logs : ce sont deux natures de
+données différentes (flux texte vs état ponctuel), avec des fréquences et des
+volumes très différents.
+
+## 3. Agents de collecte
 
 - Un agent **Vector** par serveur applicatif (ou un agent centralisé qui va
   chercher les logs via SSH si l'installation d'un agent local n'est pas
@@ -41,7 +53,7 @@
   (indépendant du futur module utilisateur — c'est une authentification
   machine-à-machine, pas une session utilisateur).
 
-## 3. Backend NestJS — modules
+## 4. Backend NestJS — modules
 
 | Module | Responsabilité |
 |---|---|
@@ -57,13 +69,13 @@ Chaque module suit le pattern standard NestJS : `*.module.ts`, `*.controller.ts`
 `*.service.ts`, DTO dans `dto/`, entités dans `entities/` (ou `schema.prisma`
 si Prisma).
 
-## 4. Frontend Next.js — vue d'ensemble
+## 5. Frontend Next.js — vue d'ensemble
 
 Voir `docs/FRONTEND.md` pour le détail des pages. Le frontend consomme :
 - l'API REST NestJS pour tout ce qui est CRUD/config/recherche historique
 - le WebSocket pour le flux temps réel et les alertes
 
-## 5. Stockage : pourquoi deux bases
+## 6. Stockage : pourquoi deux bases
 
 - **OpenSearch** : volumétrie potentiellement importante, besoin de
   recherche full-text et d'agrégations rapides par plage de dates/niveau —
@@ -74,7 +86,7 @@ Voir `docs/FRONTEND.md` pour le détail des pages. Le frontend consomme :
   pour les opérations comme "généraliser les configs" (tout ou rien sur les
   applis cochées).
 
-## 6. Flux temps réel
+## 7. Flux temps réel
 
 1. L'ingestion écrit dans OpenSearch **et** publie l'événement sur un
    `EventEmitter` interne NestJS (`@nestjs/event-emitter` suffit en Phase 1 —
@@ -88,14 +100,14 @@ Voir `docs/FRONTEND.md` pour le détail des pages. Le frontend consomme :
    planifié (cron, ex. toutes les 5 min) pour les règles à fenêtre glissante
    (ex : taux de succès SMS sur 1 jour).
 
-## 7. Déploiement
+## 8. Déploiement
 
 Voir `docs/DEPLOYMENT.md`. Résumé : Docker Compose pour l'environnement
 central (backend, frontend, Postgres, OpenSearch), agents Vector installés
 individuellement sur chaque serveur source via un script d'installation
 fourni dans `agents/`.
 
-## 8. Points de vigilance transverses (rappel)
+## 9. Points de vigilance transverses (rappel)
 
 - Détection de silence par appli (absence de logs reçus) → voir `ALERTING.md`
 - Masquage des données sensibles avant stockage/affichage (numéros de carte,

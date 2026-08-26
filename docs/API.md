@@ -21,7 +21,42 @@ L'agent envoie par lot (batch) plutôt que ligne par ligne, pour limiter le
 nombre de requêtes. Le backend parse chaque ligne via le registre de parseurs
 (`docs/LOG_PARSERS.md`), écrit dans OpenSearch, publie sur le bus interne.
 
-## 2. Applications
+## 2. Statut des services (up/down)
+
+```
+POST /api/ingestion/status
+Authorization: Bearer <agent_token>
+Body: {
+  applicationId: string,
+  server: string,
+  checks: [{ serviceName: string, state: 'active' | 'inactive' | 'failed' | 'unknown', checkedAt: string }]
+}
+→ 202 Accepted
+```
+
+Envoyé par le script de vérification (voir `AGENT_SETUP.md`), en général
+toutes les 30 s. Le backend met à jour `MonitoredService.lastState` /
+`lastCheckedAt` pour chaque service listé, et n'écrit un `ServiceStatusEvent`
+que si l'état a changé depuis la dernière vérification connue.
+
+```
+GET    /api/applications/:appId/services              liste des services surveillés
+POST   /api/applications/:appId/services               { name, checkType?, critical? }
+                                                         (critical: true par défaut)
+PATCH  /api/services/:id                                { name?, checkType?, critical?, checkInterval? }
+DELETE /api/services/:id
+
+GET    /api/applications/:appId/services/status         état courant agrégé de l'appli
+                                                         + détail par service, pour le dashboard
+```
+
+Le script de vérification installé sur le serveur applicatif appelle
+`GET /api/applications/:appId/services` périodiquement (toutes les 5 min par
+défaut) pour rafraîchir sa liste locale de services à checker, afin qu'un
+ajout/retrait de service dans l'interface n'exige pas de réinstallation
+manuelle sur le serveur (voir `AGENT_SETUP.md`).
+
+## 3. Applications
 
 ```
 GET    /api/applications                 liste
@@ -38,7 +73,7 @@ POST   /api/servers                      { name, host }
 initialise automatiquement son `AppConfig` par copie de la `GlobalConfig`
 courante (voir `CONFIG_MANAGEMENT.md`).
 
-## 3. Configuration
+## 4. Configuration
 
 ```
 GET    /api/config/global
@@ -54,7 +89,7 @@ Body: { applicationIds: string[] }
   (tout ou rien)
 ```
 
-## 4. Règles d'alerte (analyseurs)
+## 5. Règles d'alerte (analyseurs)
 
 ```
 GET    /api/applications/:appId/rules
@@ -69,7 +104,7 @@ POST   /api/rules/:id/test                déclenche une évaluation immédiate
 
 Voir `docs/ALERTING.md` pour la structure de `params` selon `type`.
 
-## 5. Alertes
+## 6. Alertes
 
 ```
 GET    /api/alerts?applicationId=&from=&to=&severity=&status=
@@ -82,7 +117,7 @@ Body: { applicationId: string, channel: 'email' | 'sms' | 'visual' | 'sound' }
   configuration (SMTP, SMS...) sans attendre un vrai incident
 ```
 
-## 6. Recherche de logs (historique)
+## 7. Recherche de logs (historique)
 
 ```
 GET /api/logs?applicationId=&from=&to=&level=&query=&page=&pageSize=
@@ -95,7 +130,7 @@ GET /api/logs?applicationId=&from=&to=&level=&query=&page=&pageSize=
 Traduit en requête OpenSearch (`bool` query : filtre `applicationId`, range
 `timestamp`, filtre `level`, `match` full-text sur `query` si fourni).
 
-## 7. WebSocket (Socket.IO)
+## 8. WebSocket (Socket.IO)
 
 Namespace `/realtime`. Le client s'abonne par appli :
 
@@ -106,13 +141,14 @@ Client → Server:  leave { applicationId }
 Server → Client:  log:new     { applicationId, entry: LogEntry }
 Server → Client:  alert:new   { applicationId, alert: AlertEvent }
 Server → Client:  alert:resolved { applicationId, alertId }
+Server → Client:  service:status { applicationId, serviceId, serviceName, previousState, newState }
 ```
 
 Le client s'abonne aux applis affichées dans l'écran courant (pas de
 diffusion globale non filtrée, pour limiter la charge côté navigateur si
 beaucoup d'applis).
 
-## 8. Types partagés
+## 9. Types partagés
 
 Tous les DTO/interfaces ci-dessus doivent être définis une seule fois dans
 `packages/shared-types` et importés à la fois par le backend (validation

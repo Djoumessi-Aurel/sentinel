@@ -1,6 +1,6 @@
 # FRONTEND.md
 
-Next.js 16+ (App Router), TypeScript, Tailwind CSS. Client Socket.IO pour le
+Next.js 14+ (App Router), TypeScript, Tailwind CSS. Client Socket.IO pour le
 temps réel.
 
 ## 1. Arborescence
@@ -18,7 +18,8 @@ apps/frontend/
 │   │   │       ├── live/page.tsx     # logs temps réel
 │   │   │       ├── history/page.tsx  # recherche historique par plage de dates
 │   │   │       ├── config/page.tsx   # config affichage + alertes pour cette appli
-│   │   │       └── rules/page.tsx    # gestion des AnalyzerRule
+│   │   │       ├── rules/page.tsx    # gestion des AnalyzerRule
+│   │   │       └── services/page.tsx # gestion des MonitoredService (up/down)
 │   │   ├── config/
 │   │   │   ├── global/page.tsx       # config globale (couleurs, canaux/analyseurs par défaut)
 │   │   │   └── generalize/page.tsx   # écran du bouton "généraliser" (sélection des applis)
@@ -48,8 +49,14 @@ apps/frontend/
   entrée par niveau). Utilisé à la fois dans l'écran config globale et config
   par appli, avec le même composant.
 - **`AppStatusBadge`** : reflète l'état d'une appli (`ok` / `warning` /
-  `critical` / `silent`) déduit des `AlertEvent` actifs, utilisé dans le
-  dashboard et la liste des applications.
+  `critical` / `silent`) déduit à la fois des `AlertEvent` actifs issus des
+  logs et de l'état courant des `MonitoredService` critiques (voir
+  `ALERTING.md`, section "Statut agrégé"), utilisé dans le dashboard et la
+  liste des applications.
+- **`ServiceStatusList`** : liste des services surveillés d'une appli
+  (`services/page.tsx`), chacun avec son état courant (pastille colorée),
+  formulaire d'ajout (nom, type de vérification, critique ou non), et un
+  historique des dernières transitions (`ServiceStatusEvent`).
 
 ## 3. Temps réel
 
