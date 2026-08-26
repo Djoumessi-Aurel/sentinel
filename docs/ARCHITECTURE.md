@@ -81,10 +81,11 @@ Voir `docs/FRONTEND.md` pour le détail des pages. Le frontend consomme :
   recherche full-text et d'agrégations rapides par plage de dates/niveau —
   c'est son cas d'usage natif. Index par mois ou par appli selon le volume
   réel observé (à ajuster en Phase 2 selon la volumétrie constatée).
-- **PostgreSQL** : données structurées, relationnelles, peu volumineuses
+- **MySQL 8** : données structurées, relationnelles, peu volumineuses
   (applis, configs, règles, historique d'alertes). Transactions nécessaires
   pour les opérations comme "généraliser les configs" (tout ou rien sur les
-  applis cochées).
+  applis cochées) — MySQL 8 avec le moteur InnoDB (par défaut) les supporte
+  pleinement.
 
 ## 7. Flux temps réel
 
@@ -103,7 +104,7 @@ Voir `docs/FRONTEND.md` pour le détail des pages. Le frontend consomme :
 ## 8. Déploiement
 
 Voir `docs/DEPLOYMENT.md`. Résumé : Docker Compose pour l'environnement
-central (backend, frontend, Postgres, OpenSearch), agents Vector installés
+central (backend, frontend, MySQL, OpenSearch), agents Vector installés
 individuellement sur chaque serveur source via un script d'installation
 fourni dans `agents/`.
 

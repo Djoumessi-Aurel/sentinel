@@ -5,13 +5,15 @@
 ```yaml
 # docker/docker-compose.yml
 services:
-  postgres:
-    image: postgres:16
+  mysql:
+    image: mysql:8.0
     environment:
-      POSTGRES_DB: monitoring
-      POSTGRES_USER: monitoring
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes: [pgdata:/var/lib/postgresql/data]
+      MYSQL_DATABASE: monitoring
+      MYSQL_USER: monitoring
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes: [mysqldata:/var/lib/mysql]
 
   opensearch:
     image: opensearchproject/opensearch:2
@@ -23,14 +25,14 @@ services:
   backend:
     build: ../apps/backend
     environment:
-      - DATABASE_URL=postgresql://monitoring:${POSTGRES_PASSWORD}@postgres:5432/monitoring
+      - DATABASE_URL=mysql://monitoring:${MYSQL_PASSWORD}@mysql:3306/monitoring
       - OPENSEARCH_URL=http://opensearch:9200
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMS_GATEWAY_API_KEY=${SMS_GATEWAY_API_KEY}
       - AGENT_TOKEN_SECRET=${AGENT_TOKEN_SECRET}
-    depends_on: [postgres, opensearch]
+    depends_on: [mysql, opensearch]
     ports: ["3001:3001"]
 
   frontend:
@@ -42,12 +44,15 @@ services:
     ports: ["3000:3000"]
 
 volumes:
-  pgdata:
+  mysqldata:
   osdata:
 ```
 
 - Toutes les valeurs sensibles (`${...}`) viennent d'un fichier `.env` non
   commité (`.env.example` fourni avec des valeurs factices).
+- Le jeu de caractères `utf8mb4` (plutôt que le `utf8` historique de MySQL,
+  limité à 3 octets) est fixé explicitement pour supporter correctement les
+  messages de log contenant des emojis ou caractères spéciaux.
 - En production, désactiver `plugins.security.disabled` sur OpenSearch et
   configurer un accès authentifié (hors périmètre détaillé ici, à traiter au
   moment du passage en prod réelle).
@@ -82,7 +87,7 @@ fois à la création, à copier dans la commande d'installation.
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | connexion PostgreSQL |
+| `DATABASE_URL` | connexion MySQL |
 | `OPENSEARCH_URL` | connexion OpenSearch |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` | envoi d'emails d'alerte |
 | `SMS_GATEWAY_API_KEY` | passerelle SMS (réutilisation de celle de distribcard si possible) |

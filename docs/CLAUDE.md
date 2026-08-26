@@ -18,7 +18,7 @@ des règles paramétrables par application.
 | Document | Contenu |
 |---|---|
 | `docs/ARCHITECTURE.md` | Vue d'ensemble des composants, flux de données, choix techniques |
-| `docs/DATA_MODEL.md` | Schéma PostgreSQL, mapping OpenSearch, migrations |
+| `docs/DATA_MODEL.md` | Schéma MySQL, mapping OpenSearch, migrations |
 | `docs/API.md` | Contrat API REST + événements WebSocket |
 | `docs/LOG_PARSERS.md` | Interface des parseurs de logs, implémentation par type d'appli, guide d'extension |
 | `docs/ALERTING.md` | Moteur de règles, notificateurs, anti-spam, détection de silence |
@@ -39,7 +39,7 @@ générales et l'organisation du dépôt).
 - **Frontend** : Next.js 14+ (App Router), TypeScript, Tailwind CSS
 - **Backend** : NestJS, TypeScript
 - **Stockage logs** : OpenSearch (ou Elasticsearch, API compatible)
-- **Stockage métier/config** : PostgreSQL (via Prisma ou TypeORM — voir `docs/DATA_MODEL.md`)
+- **Stockage métier/config** : MySQL 8 (via Prisma ou TypeORM — voir `docs/DATA_MODEL.md`)
 - **Temps réel** : WebSocket (Socket.IO côté NestJS)
 - **Agents de collecte** : Vector (config déclarative TOML/YAML, pas de code applicatif à écrire dans ce dépôt sauf templates de config)
 - **Containerisation** : Docker + Docker Compose
@@ -95,7 +95,7 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
    pas juste arrêter de remonter de l'information sans bruit.
 
 5. **Pas de secret en dur.** Toute donnée sensible (identifiants SMTP, clé API
-   SMS, credentials OpenSearch/Postgres) passe par variables d'environnement,
+   SMS, credentials OpenSearch/MySQL) passe par variables d'environnement,
    jamais commitée.
 
 ## 6. Conventions de code
@@ -115,7 +115,7 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 ## 7. Ordre de développement recommandé (roadmap)
 
 **Phase 1 — MVP**
-1. Squelette monorepo + Docker Compose (Postgres, OpenSearch, backend, frontend)
+1. Squelette monorepo + Docker Compose (MySQL, OpenSearch, backend, frontend)
 2. Modèle de données `Application`, `Server`, `GlobalConfig`, `AppConfig`
 3. Un agent Vector de test envoyant des logs vers un endpoint d'ingestion HTTP du backend
 4. Parseur générique (niveau + message) + parseur Spring Boot
@@ -157,7 +157,7 @@ préparation listés dans `docs/AUTH.md` dès la Phase 1.
   complexe : c'est une simple lecture de `AppConfig` (ou `GlobalConfig` si pas
   encore initialisée), stockée telle quelle
 - Ne pas stocker les logs bruts uniquement en base relationnelle (volume
-  incompatible avec Postgres à moyen terme) : Postgres = métadonnées/config,
+  incompatible avec MySQL à moyen terme) : MySQL = métadonnées/config,
   OpenSearch = logs
 - Ne pas bloquer l'ingestion sur l'évaluation des règles : l'ingestion écrit
   d'abord, l'évaluation des règles est asynchrone (job séparé ou consumer)

@@ -5,7 +5,19 @@ directement consommables par `packages/shared-types`). TypeORM est une
 alternative acceptable si préférée par l'outil agentique, mais rester cohérent
 dans tout le projet.
 
-## 1. Schéma PostgreSQL (métadonnées / config / alertes)
+## 1. Schéma MySQL 8 (métadonnées / config / alertes)
+
+Datasource Prisma :
+```prisma
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL") // mysql://user:password@host:3306/monitoring
+}
+```
+
+Base créée avec le jeu de caractères `utf8mb4` (voir `DEPLOYMENT.md`) — les
+types `Json` ci-dessous sont mappés sur des colonnes `JSON` natives, prises
+en charge nativement par MySQL 8.
 
 ```prisma
 model Server {
@@ -122,6 +134,12 @@ Notes :
 - Aucune table `User`/`Role` n'est créée en Phase 1-3, mais les colonnes
   `createdBy`/`updatedBy` sont prévues sur les entités clés pour éviter une
   migration lourde plus tard (voir `AUTH.md`).
+- Spécificité MySQL : les colonnes `String` uniques (ex. `AppConfig.applicationId`,
+  `IngestionAgentToken.token`, `User.email` en Phase 4) sont générées par
+  Prisma en `VARCHAR(191)` avec `utf8mb4` par défaut, pour rester sous la
+  limite d'index de MySQL (767 octets max en InnoDB/utf8mb4) — ne pas
+  surcharger ces champs avec `@db.VarChar(...)` au-delà sans vérifier
+  l'impact sur les index uniques.
 
 ## 2. Mapping OpenSearch (logs)
 
