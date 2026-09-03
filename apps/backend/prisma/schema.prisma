@@ -1,0 +1,209 @@
+// Schéma MySQL 8 — voir docs/DATA_MODEL.md
+// MySQL = métadonnées, config, règles, alertes, statut des services.
+// Les logs bruts vont dans le LogStore (OpenSearch en cible, table LogEntry
+// ci-dessous pour l'adaptateur de développement — voir docs/DECISIONS.md D002).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  // Base fantôme utilisée par `prisma migrate dev` pour calculer les diffs.
+  // Sur l'instance de développement standalone, l'utilisateur applicatif n'a pas
+  // le droit de créer des bases : elle est donc provisionnée à l'avance.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model Server {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(120)
+  host      String   @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  applications Application[]
+
+  @@map("servers")
+}
+
+model Application {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(120)
+  // 'spring-boot' | 'nodejs-pm2' | ... — pas d'enum stricte : ajouter un type
+  // ne doit jamais demander de migration (docs/LOG_PARSERS.md §5).
+  type      String   @db.VarChar(64)
+  serverId  String
+  logPath   String   @db.Text
+  status    String   @default("active") @db.VarChar(16)
+  // Dernier log reçu, mis à jour à chaque ingestion : c'est la source de la
+  // règle `silence` (docs/ALERTING.md §1.3).
+  lastLogAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Préparation auth (docs/AUTH.md §1) — non exploité avant la Phase 4.
+  createdBy String? @db.VarChar(64)
+  updatedBy String? @db.VarChar(64)
+
+  server   Server               @relation(fields: [serverId], references: [id], onDelete: Restrict)
+  config   AppConfig?
+  rules    AnalyzerRule[]
+  alerts   AlertEvent[]
+  services MonitoredService[]
+  tokens   IngestionAgentToken[]
+  logs     LogEntry[]
+
+  @@index([serverId])
+  @@index([status])
+  @@map("applications")
+}
+
+model GlobalConfig {
+  id                   String   @id @default("singleton") @db.VarChar(16)
+  displayColors        Json
+  alertChannelsDefault Json
+  analyzerDefaults     Json
+  serviceCheckDefaults Json
+  updatedAt            DateTime @updatedAt
+  updatedBy            String?  @db.VarChar(64)
+
+  @@map("global_config")
+}
+
+model AppConfig {
+  id            String   @id @default(uuid())
+  applicationId String   @unique
+  displayColors Json
+  alertChannels Json
+  quietHours    Json?
+  updatedAt     DateTime @updatedAt
+  updatedBy     String?  @db.VarChar(64)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("app_configs")
+}
+
+model AnalyzerRule {
+  id            String   @id @default(uuid())
+  applicationId String
+  type          String   @db.VarChar(64)
+  name          String   @db.VarChar(190)
+  enabled       Boolean  @default(true)
+  params        Json
+  // Délai minimum entre deux notifications pour cette règle (docs/ALERTING.md §3).
+  cooldown      String   @default("15m") @db.VarChar(16)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?  @db.VarChar(64)
+  updatedBy     String?  @db.VarChar(64)
+
+  application Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  alerts      AlertEvent[]
+
+  @@index([applicationId, enabled])
+  @@index([type])
+  @@map("analyzer_rules")
+}
+
+model AlertEvent {
+  id            String    @id @default(uuid())
+  applicationId String
+  ruleId        String?
+  severity      String    @db.VarChar(16)
+  message       String    @db.Text
+  triggeredAt   DateTime  @default(now())
+  resolvedAt    DateTime?
+  // Dernière notification effectivement émise, base du cooldown anti-spam.
+  lastNotifiedAt   DateTime?
+  channelsNotified Json
+
+  application Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  rule        AnalyzerRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, resolvedAt])
+  @@index([ruleId, resolvedAt])
+  @@index([triggeredAt])
+  @@map("alert_events")
+}
+
+model MonitoredService {
+  id            String    @id @default(uuid())
+  applicationId String
+  // Ex. `httpd.service`, ou `api` pour un processus PM2.
+  name          String    @db.VarChar(190)
+  checkType     String    @default("systemd") @db.VarChar(32)
+  // Critique par défaut : un service qu'on prend la peine d'ajouter est
+  // considéré important tant qu'on ne l'a pas rétrogradé (docs/DATA_MODEL.md §3).
+  critical      Boolean   @default(true)
+  checkInterval Int       @default(30)
+  lastState     String?   @db.VarChar(16)
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  application Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  events      ServiceStatusEvent[]
+
+  // Un même nom de service n'a de sens qu'une fois par application.
+  @@unique([applicationId, name])
+  @@index([applicationId, critical])
+  @@map("monitored_services")
+}
+
+model ServiceStatusEvent {
+  id                 String   @id @default(uuid())
+  monitoredServiceId String
+  previousState      String?  @db.VarChar(16)
+  newState           String   @db.VarChar(16)
+  changedAt          DateTime @default(now())
+
+  monitoredService MonitoredService @relation(fields: [monitoredServiceId], references: [id], onDelete: Cascade)
+
+  @@index([monitoredServiceId, changedAt])
+  @@map("service_status_events")
+}
+
+model IngestionAgentToken {
+  id            String    @id @default(uuid())
+  // Rattaché à l'application, et non au seul serveur : un token compromis ne
+  // doit pouvoir injecter que dans son application (docs/SECURITY.md A01,
+  // docs/DECISIONS.md D004).
+  applicationId String
+  serverId      String
+  // Empreinte SHA-256 salée du token. Le token en clair n'existe qu'une fois,
+  // au moment où il est affiché à l'utilisateur (docs/SECURITY.md A02).
+  tokenHash     String    @unique @db.VarChar(64)
+  label         String?   @db.VarChar(190)
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, revokedAt])
+  @@map("ingestion_agent_tokens")
+}
+
+// Adaptateur de développement du LogStore (docs/DECISIONS.md D002).
+// En production, les logs vont dans OpenSearch et cette table reste vide.
+model LogEntry {
+  id              String   @id @default(uuid())
+  applicationId   String
+  applicationType String   @db.VarChar(64)
+  server          String   @db.VarChar(255)
+  timestamp       DateTime
+  level           String   @db.VarChar(32)
+  message         String   @db.Text
+  raw             String   @db.Text
+  metadata        Json?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, timestamp])
+  @@index([applicationId, level, timestamp])
+  @@index([timestamp])
+  @@map("log_entries")
+}

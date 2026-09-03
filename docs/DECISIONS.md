@@ -103,3 +103,34 @@ respectés tels quels et ignorent ce réglage.
 ### À valider
 Si un jour des serveurs de fuseaux différents sont supervisés, ce réglage
 devra passer d'une variable globale à une colonne sur `Server`.
+
+---
+
+## D004 — Le token d'agent est rattaché à l'application, pas seulement au serveur
+
+**Date** : 2026-09-03
+**Statut** : appliqué
+**Documents concernés** : `DATA_MODEL.md §1`, `AGENT_SETUP.md §3`, `SECURITY.md A01`
+
+### Contexte
+`DATA_MODEL.md` décrit `IngestionAgentToken` avec un `serverId`. Mais
+`AGENT_SETUP.md §3` précise que le token est généré **au moment où
+l'application est déclarée**, et l'installation se fait par couple
+application/serveur. Les deux documents ne se recoupent pas.
+
+### Décision
+`IngestionAgentToken` porte `applicationId` **et** `serverId`. Le garde
+d'ingestion vérifie que l'`applicationId` du corps de la requête correspond
+bien à celui du token présenté.
+
+### Conséquences
+Un serveur héberge souvent plusieurs applications (filemanager et planning
+backoffice, les quatre composants de LTM, les trois de Card Companion). Avec un
+token par serveur, l'agent de n'importe laquelle pourrait injecter des logs au
+nom des autres : un agent compromis contaminerait tout le serveur. Le
+rattachement à l'application limite la portée d'un token à ce qu'il doit
+réellement pouvoir écrire (OWASP A01, moindre privilège).
+
+### Note
+Le token est stocké en empreinte SHA-256 salée (`AGENT_TOKEN_SECRET`), comparé
+en temps constant, et n'est affiché en clair qu'une seule fois.

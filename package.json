@@ -20,9 +20,18 @@
     "db:generate": "npm run db:generate --workspace @sentinel/backend",
     "db:migrate": "npm run db:migrate --workspace @sentinel/backend",
     "db:seed": "npm run db:seed --workspace @sentinel/backend",
-    "audit:security": "npm audit --audit-level=high"
+    "audit:security": "node scripts/audit-security.mjs",
+    "audit:all": "npm audit",
+    "dev:mysql": "node scripts/dev-mysql.mjs start",
+    "dev:mysql:stop": "node scripts/dev-mysql.mjs stop",
+    "dev:mysql:status": "node scripts/dev-mysql.mjs status"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true
   }
 }

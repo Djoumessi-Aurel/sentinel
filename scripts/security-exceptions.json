@@ -1,0 +1,31 @@
+{
+  "$comment": [
+    "Exceptions motivées à la porte d'audit des dépendances (docs/SECURITY.md, OWASP A06).",
+    "Une exception n'est recevable que si la vulnérabilité n'est pas atteignable depuis le code déployé,",
+    "et elle porte toujours une date de revue : passée cette date, l'audit échoue de nouveau.",
+    "Ne jamais ajouter d'entrée ici pour une dépendance présente à l'exécution du backend ou du frontend."
+  ],
+  "exceptions": [
+    {
+      "package": "deepmerge-ts",
+      "advisory": "GHSA-ggr8-5vv4-36mx",
+      "severity": "high",
+      "reason": "Épuisement de pile atteignable uniquement en fusionnant un graphe d'objets récursif. Dépendance transitive de la CLI prisma (devDependency), utilisée au moment des migrations et de la génération du client. Le runtime déployé n'embarque que @prisma/client, qui n'a aucune dépendance.",
+      "reviewBy": "2026-12-31"
+    },
+    {
+      "package": "@prisma/config",
+      "advisory": "GHSA-ggr8-5vv4-36mx",
+      "severity": "high",
+      "reason": "Même cause que deepmerge-ts : chargeur de configuration de la CLI prisma, absent du runtime déployé. Aucune version corrigée publiée à ce jour ; les overrides npm ne s'appliquent pas, la version étant épinglée en dur.",
+      "reviewBy": "2026-12-31"
+    },
+    {
+      "package": "prisma",
+      "advisory": "GHSA-ggr8-5vv4-36mx",
+      "severity": "high",
+      "reason": "CLI de migration, en devDependency. Signalée uniquement à cause de @prisma/config ci-dessus. À lever dès qu'une version de prisma embarquant deepmerge-ts >= 8 est publiée.",
+      "reviewBy": "2026-12-31"
+    }
+  ]
+}
