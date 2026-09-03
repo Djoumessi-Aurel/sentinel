@@ -96,6 +96,29 @@ fois à la création, à copier dans la commande d'installation.
 
 ## 4. Environnement de développement
 
+> **Sans Docker sur le poste de développement.** Le poste de travail n'a pas les
+> droits administrateur : Docker n'y est pas installable. Le développement local
+> se fait donc avec les binaires standalone (Node, MySQL 8), et OpenSearch n'est
+> pas requis — voir `docs/DECISIONS.md`, décisions D001 et D002. Les fichiers
+> Docker Compose ci-dessus restent la cible de déploiement serveur.
+
+### 4.1 Démarrage local (sans Docker)
+
+```bash
+npm ci                      # installe tout le monorepo
+npm run dev:mysql           # initialise et démarre MySQL 8 standalone dans .data/mysql
+npm run db:migrate          # applique les migrations Prisma
+npm run db:seed             # crée la GlobalConfig et un jeu de données de démonstration
+npm run dev:backend         # NestJS sur http://localhost:3001
+npm run dev:frontend        # Next.js sur http://localhost:3000
+```
+
+Variables d'environnement de développement : copier `.env.example` en `.env`.
+`LOG_STORE=mysql` par défaut ; passer à `opensearch` dès qu'une instance est
+disponible.
+
+### 4.2 Avec Docker (environnement serveur)
+
 `docker-compose.dev.yml` : mêmes services + hot-reload backend/frontend
 (volumes montés en bind mount, `nest start --watch` / `next dev`). Un agent
 Vector de test peut tourner en local pour simuler un flux de logs sans

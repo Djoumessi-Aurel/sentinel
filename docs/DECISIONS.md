@@ -1,0 +1,105 @@
+# DECISIONS.md — Journal des décisions d'architecture
+
+Décisions prises en cours de construction qui s'écartent d'un document de
+référence, ou qui tranchent un point que les documents laissaient ouvert.
+Chacune est à relire et à valider ou infirmer.
+
+---
+
+## D001 — Développement local sans Docker
+
+**Date** : 2026-09-03
+**Statut** : appliqué
+**Documents concernés** : `CLAUDE.md §3`, `DEPLOYMENT.md §1 et §4`
+
+### Contexte
+`DEPLOYMENT.md` décrit l'environnement central en Docker Compose (MySQL,
+OpenSearch, backend, frontend). Or le poste de développement n'a **pas les
+droits administrateur** : Docker n'est pas installé et ne peut pas l'être. Les
+outils disponibles sont des installations standalone : Node 24, MySQL 8.0.46,
+JDK 21.
+
+### Décision
+Le développement local se fait **sans Docker**, contre un MySQL standalone
+lancé depuis `C:\Users\adjoumessi\tools\mysql-8.0.46-winx64`. Les fichiers
+Docker Compose restent dans le dépôt : ils décrivent la cible de déploiement
+serveur, pas l'environnement de travail quotidien.
+
+### Conséquences
+- Un script `scripts/dev-mysql.*` initialise et démarre l'instance MySQL locale
+  dans `.data/mysql` (ignoré par git).
+- Toute nouvelle dépendance d'infrastructure doit avoir un mode de lancement
+  standalone, sinon elle est refusée ou rendue optionnelle.
+- Les instructions d'installation ne doivent jamais exiger d'élévation de
+  privilèges.
+
+---
+
+## D002 — Stockage des logs derrière une interface, OpenSearch non requis en développement
+
+**Date** : 2026-09-03
+**Statut** : appliqué
+**Documents concernés** : `ARCHITECTURE.md §6`, `CLAUDE.md §8`, `DATA_MODEL.md §2`
+
+### Contexte
+OpenSearch est le stockage de logs retenu, et `CLAUDE.md §8` interdit de
+stocker les logs bruts **uniquement** en base relationnelle, la volumétrie
+devenant incompatible avec MySQL à moyen terme. Mais OpenSearch ne peut pas
+tourner sur le poste de développement (conséquence de D001), et le rendre
+obligatoire bloquerait tout développement local.
+
+### Décision
+Le stockage des logs passe par un **port** `LogStore`, avec deux adaptateurs :
+
+| Adaptateur | Usage | Sélection |
+|---|---|---|
+| `OpenSearchLogStore` | cible de production, recherche et agrégations natives | `LOG_STORE=opensearch` |
+| `MysqlLogStore` | développement local et démonstration, volumétrie modeste | `LOG_STORE=mysql` (défaut en dev) |
+
+C'est exactement le principe « extensibilité par plugin, pas par branchement
+conditionnel » de `CLAUDE.md §5.1` : aucun `if (store === ...)` dans le code
+métier, le moteur de règles et l'API de recherche ne connaissent que
+l'interface.
+
+### Conséquences
+- L'interface `LogStore` reste volontairement pauvre (écriture par lot,
+  recherche paginée, agrégation par comptage sur critères) afin que les deux
+  adaptateurs puissent l'honorer honnêtement. Aucune fonctionnalité ne repose
+  sur une capacité que seul OpenSearch possède.
+- `MysqlLogStore` est explicitement documenté comme **inadapté à la production**
+  du parc complet : la table de logs est isolée et purgeable, et son usage est
+  journalisé au démarrage du backend par un avertissement visible.
+- La bascule vers OpenSearch en production ne demande qu'une variable
+  d'environnement et l'exécution du script de création d'index.
+
+### À valider
+Confirmer qu'un OpenSearch sera bien disponible sur l'environnement cible du
+GIE. Sinon, la volumétrie réelle du parc devra être mesurée pour décider si
+`MysqlLogStore` peut tenir avec une politique de rétention courte.
+
+---
+
+## D003 — Fuseau horaire des horodatages de log
+
+**Date** : 2026-09-03
+**Statut** : appliqué
+**Documents concernés** : `ARCHITECTURE.md §9`
+
+### Contexte
+`ARCHITECTURE.md` impose de normaliser tous les horodatages en UTC dès
+l'ingestion. Mais les lignes de log des applis du parc portent des horodatages
+**naïfs**, sans fuseau (`2026-03-13 10:15:32.123`), et les serveurs du GIE sont
+en UTC+1. Les interpréter comme de l'UTC décalerait toute l'application d'une
+heure : recherches par plage de dates fausses, fenêtres glissantes des règles
+fausses, alertes de silence déclenchées à tort.
+
+### Décision
+Le décalage de la source est **explicite** et non deviné : `ParseContext`
+porte `sourceUtcOffsetMinutes`, alimenté par la variable d'environnement
+`LOG_SOURCE_UTC_OFFSET_MINUTES` (60 pour le parc du GIE, 0 par défaut). Les
+horodatages déjà porteurs d'un fuseau (`Z`, `+01:00`, format nginx CLF) sont
+respectés tels quels et ignorent ce réglage.
+
+### À valider
+Si un jour des serveurs de fuseaux différents sont supervisés, ce réglage
+devra passer d'une variable globale à une colonne sur `Server`.

@@ -27,6 +27,8 @@ des règles paramétrables par application.
 | `docs/AGENT_SETUP.md` | Guide pas-à-pas de création et déploiement des agents (logs + vérification de statut des services) |
 | `docs/FRONTEND.md` | Structure de l'application Next.js |
 | `docs/DEPLOYMENT.md` | Docker Compose, agents de collecte, variables d'environnement |
+| `docs/SECURITY.md` | Conformité OWASP Top 10 : mesures concrètes par catégorie |
+| `docs/DECISIONS.md` | Journal des décisions d'architecture prises en cours de construction |
 
 **Règle impérative** : avant d'implémenter une fonctionnalité touchant à la config,
 aux alertes, aux parseurs ou à l'auth, relire le document correspondant. Ces
@@ -97,6 +99,15 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 5. **Pas de secret en dur.** Toute donnée sensible (identifiants SMTP, clé API
    SMS, credentials OpenSearch/MySQL) passe par variables d'environnement,
    jamais commitée.
+
+6. **Conformité OWASP Top 10.** L'application supervise une production
+   monétique : ses logs peuvent contenir des données de porteurs. Toute
+   fonctionnalité doit être conçue et relue au regard de `docs/SECURITY.md`,
+   qui traduit chaque catégorie du OWASP Top 10 en mesures concrètes. En
+   particulier : validation systématique des entrées, aucune route sans garde,
+   limites de ressources sur l'ingestion, masquage des données sensibles avant
+   persistance, et aucune divulgation de détail interne dans les réponses
+   d'erreur.
 
 ## 6. Conventions de code
 
