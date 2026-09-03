@@ -1,0 +1,29 @@
+{
+  "name": "@sentinel/log-parsers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Registre de parseurs de logs, un par type d'application (voir docs/LOG_PARSERS.md)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc -b --dry",
+    "test": "npm run build && node --test \"test/**/*.test.mts\"",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@sentinel/shared-types": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}

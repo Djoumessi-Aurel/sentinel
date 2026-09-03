@@ -1,0 +1,28 @@
+{
+  "name": "sentinel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plateforme de monitoring de logs et de statut des services du parc applicatif monétique",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace @sentinel/backend",
+    "dev:frontend": "npm run dev --workspace @sentinel/frontend",
+    "db:generate": "npm run db:generate --workspace @sentinel/backend",
+    "db:migrate": "npm run db:migrate --workspace @sentinel/backend",
+    "db:seed": "npm run db:seed --workspace @sentinel/backend",
+    "audit:security": "npm audit --audit-level=high"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

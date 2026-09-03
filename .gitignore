@@ -1,1 +1,34 @@
 *.pdf
+
+# dépendances
+node_modules/
+.npm/
+
+# builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# secrets et environnement — jamais commités (docs/CLAUDE.md §5)
+.env
+.env.*
+!.env.example
+
+# données locales (MySQL standalone, logs de dev)
+.data/
+*.log
+!docs/**/*.log
+
+# outils
+coverage/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# artefacts de compilation égarés à côté des sources (ne doivent jamais être commités)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.map
