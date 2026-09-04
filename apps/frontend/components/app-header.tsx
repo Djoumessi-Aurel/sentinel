@@ -39,11 +39,18 @@ export function AppHeader() {
   // Chaque bloc de navigation suit le droit qui commande l'écran auquel il mène,
   // et non un rôle nommé : les deux resteront cohérents même si les droits
   // d'un rôle changent.
-  const entrees = [
-    ...NAV_COMMUNE,
-    ...(usePeut('administrer') ? NAV_ADMINISTRATION : []),
-    ...(usePeut('gererLesUtilisateurs') ? NAV_UTILISATEURS : []),
-  ];
+  const administrateur = usePeut('administrer');
+  const gestionnaire = usePeut('gererLesUtilisateurs');
+
+  // Session restreinte à l'appairage : proposer une navigation qui ne mène qu'à
+  // des refus n'aiderait personne.
+  const entrees = user.mustEnrollTwoFactor
+    ? []
+    : [
+        ...NAV_COMMUNE,
+        ...(administrateur ? NAV_ADMINISTRATION : []),
+        ...(gestionnaire ? NAV_UTILISATEURS : []),
+      ];
 
   const seDeconnecter = async () => {
     setDeconnexionEnCours(true);
@@ -86,12 +93,12 @@ export function AppHeader() {
         </nav>
 
         <div className="flex items-center gap-3 border-l border-slate-200 pl-4 text-sm">
-          <span className="text-slate-700">
+          <Link href="/compte" className="text-slate-700 transition hover:text-slate-900">
             {user.displayName}
             <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
               {ROLE_LABELS[user.role]}
             </span>
-          </span>
+          </Link>
           <button
             type="button"
             onClick={seDeconnecter}

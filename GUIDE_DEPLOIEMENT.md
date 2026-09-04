@@ -206,6 +206,7 @@ sudo chmod 640 /opt/sentinel/.env
 | `LOG_SOURCE_UTC_OFFSET_MINUTES` | non | `0` | Décalage du fuseau dans lequel les applications écrivent leurs logs. **60** pour les serveurs du GIE |
 | `AUTH_MODE` | oui | `dev` | `ldap` en production |
 | `AUTH_JWT_SECRET` | oui | — | Signature des cookies de session, 32 caractères minimum |
+| `AUTH_ENCRYPTION_KEY` | oui | — | Protection des secrets de double authentification, 32 octets minimum |
 | `AUTH_SESSION_HOURS` | non | `12` | Durée de session d'une personne |
 | `AUTH_VIEWER_SESSION_DAYS` | non | `30` | Durée de session de l'écran d'open space |
 | `SENTINEL_ADMIN_PASSWORD_HASH` | oui | — | Empreinte du super administrateur (§6) |
@@ -223,6 +224,13 @@ sudo chmod 640 /opt/sentinel/.env
 
 Une variable obligatoire absente empêche le démarrage, avec un message indiquant laquelle. C'est
 volontaire : mieux vaut un refus de démarrer qu'une application qui tourne à moitié.
+
+Les deux clés se génèrent une fois par environnement :
+
+```
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"   # AUTH_JWT_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # AUTH_ENCRYPTION_KEY
+```
 
 Deux garde-fous méritent d'être connus, parce qu'ils bloquent un démarrage qu'on croyait correct :
 
@@ -622,7 +630,9 @@ de l'open space avec lui — sa session de trente jours évite qu'il se déconne
 | 9 | **Applications → une application → Configuration → Tester** sur le canal courriel | Message reçu |
 | 10 | Idem pour le canal SMS | Message reçu |
 | 11 | Six tentatives de connexion avec un mauvais mot de passe | La sixième est refusée en 429 |
-| 12 | Redémarrer le serveur central | Tout remonte seul |
+| 12 | Activer la double authentification sur votre compte (**Mon compte**) | QR code, puis code accepté |
+| 13 | Se déconnecter, se reconnecter | Le mot de passe seul ne suffit plus |
+| 14 | Redémarrer le serveur central | Tout remonte seul |
 
 Le point 11 mérite d'être fait : c'est la seule façon de vérifier que la limitation des tentatives
 est effectivement active derrière le proxy, et donc que `TRUST_PROXY` est correctement réglé.
@@ -668,9 +678,14 @@ mysqldump -u sentinel -p --single-transaction --routines sentinel \
 `--single-transaction` évite de verrouiller les tables pendant la sauvegarde : l'ingestion continue
 sans interruption.
 
-Sauvegardez également `/opt/sentinel/.env` — il contient des valeurs qu'on ne retrouve pas, en
-particulier `AGENT_TOKEN_SECRET`, sans lequel **tous les tokens d'agent existants deviennent
-invalides** et tous les agents doivent être réinstallés.
+Sauvegardez également `/opt/sentinel/.env` — il contient des valeurs qu'on ne retrouve pas :
+
+- `AGENT_TOKEN_SECRET`, sans lequel **tous les tokens d'agent existants deviennent invalides** et
+  tous les agents doivent être réinstallés ;
+- `AUTH_ENCRYPTION_KEY`, sans laquelle **les secrets de double authentification déjà appairés
+  deviennent illisibles**. Les codes de récupération ne sauvent pas de ce cas : leur empreinte
+  dépend de la même clé. Les personnes concernées devront réappairer leur application
+  d'authentification.
 
 Les logs ne sont pas sauvegardés : ils sont volumineux, reconstituables depuis les serveurs
 d'origine, et soumis à une rétention limitée.
@@ -708,6 +723,8 @@ faut pas faire disparaître.
 | Un agent reçoit des 429 | Quota d'ingestion atteint | Normal en cas de rafale ; persistant, c'est un fichier de log anormalement bavard |
 | Un service reste « inconnu » | Le nom déclaré ne correspond pas | `systemctl list-units --type=service` sur le serveur applicatif |
 | Le son ne se déclenche pas sur l'écran mural | Politique de lecture automatique du navigateur | Autoriser le son pour le site dans les paramètres du navigateur |
+| Le code de double authentification est toujours refusé | Horloge du téléphone décalée | Activer l'heure automatique sur le téléphone ; une minute d'écart suffit |
+| Quelqu'un a perdu son téléphone | — | Ses codes de récupération, ou une réinitialisation depuis l'écran **Utilisateurs** |
 
 ### Repartir de zéro sur l'authentification
 
@@ -720,3 +737,6 @@ npm run auth:hash-password --workspace @sentinel/backend
 
 Remplacez `SENTINEL_ADMIN_PASSWORD_HASH` dans `.env`, redémarrez le backend, connectez-vous, et
 rétablissez les comptes nominatifs. Aucune intervention en base n'est nécessaire.
+
+Ce compte n'a jamais de double authentification, précisément pour rester utilisable dans cette
+situation.

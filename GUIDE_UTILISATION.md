@@ -44,6 +44,13 @@ manque : demandez à un administrateur de vous déclarer.
 Après cinq tentatives infructueuses en une minute, les suivantes sont refusées pendant un moment.
 Attendez une minute plutôt que d'insister.
 
+### Si un code vous est demandé
+
+![La seconde étape de connexion](captures/17-connexion-second-facteur.png){width=11cm}
+
+Votre compte a la **double authentification** activée : saisissez le code à six chiffres affiché par
+votre application d'authentification. Voir « Protéger son compte » plus bas.
+
 ## Ce que vous voyez selon votre rôle
 
 Votre rôle est affiché en haut à droite, à côté de votre nom. Il détermine ce que vous pouvez faire
@@ -192,6 +199,67 @@ Les navigateurs interdisent à une page de jouer un son avant la première inter
 l'utilisateur. Un clic n'importe où lève le blocage pour la session. Pour l'écran mural, où
 personne ne clique, autorisez le son pour le site une fois pour toutes dans les paramètres du
 navigateur — le bandeau indique le chemin exact à ouvrir.
+
+---
+
+# Protéger son compte
+
+L'écran **Mon compte** s'ouvre en cliquant sur votre nom, en haut à droite.
+
+![Mon compte](captures/14-mon-compte.png){width=15cm}
+
+Votre mot de passe est celui de votre compte Windows : il se change dans l'Active Directory, pas
+ici. Sentinel n'en conserve aucune trace.
+
+## La double authentification
+
+Un code à six chiffres, renouvelé toutes les trente secondes par une application d'authentification
+— Google Authenticator, Authy, FreeOTP. Il s'ajoute au mot de passe : le connaître ne suffit plus
+à entrer.
+
+### L'activer
+
+![L'appairage](captures/15-appairage-2fa.png){width=15cm}
+
+1. Cliquez sur **Activer la double authentification** ;
+2. dans votre application d'authentification, choisissez « ajouter un compte », puis scannez le QR
+   code affiché ;
+3. saisissez le code à six chiffres que l'application affiche, et validez.
+
+Tant que cette troisième étape n'est pas faite, **rien n'est activé**. C'est volontaire : si le QR
+avait été mal scanné, vous vous retrouveriez enfermé dehors à votre prochaine connexion sans avoir
+rien fait de mal.
+
+> Si vous ne pouvez pas scanner — écran trop petit, appareil photo indisponible — dépliez
+> « Impossible de scanner ? » et recopiez la clé à la main dans votre application.
+
+### Les codes de récupération
+
+![Les codes de récupération](captures/16-codes-de-recuperation.png){width=15cm}
+
+L'activation affiche **dix codes de récupération**. Ils ne seront **plus jamais affichés**.
+
+Imprimez-les, ou rangez-les dans votre gestionnaire de mots de passe. Chacun ne sert qu'une fois, et
+permet d'entrer si votre téléphone est perdu, cassé ou simplement resté chez vous. Saisissez-en un
+dans le champ du code, à la place des six chiffres.
+
+Quand il vous en reste peu, régénérez-en depuis cet écran. Les précédents cessent alors de
+fonctionner.
+
+### Si vous perdez votre téléphone
+
+Utilisez un code de récupération pour entrer, puis reconfigurez la double authentification sur votre
+nouvel appareil.
+
+Si vous n'avez plus ni téléphone ni codes, un administrateur peut réinitialiser votre double
+authentification. Vous vous reconnecterez alors avec votre seul mot de passe, et pourrez la
+reconfigurer.
+
+### Un code toujours refusé ?
+
+Presque toujours l'**horloge du téléphone**. Ces codes dépendent de l'heure : une minute d'écart
+suffit à les rendre invalides. Activez le réglage automatique de la date et de l'heure sur votre
+téléphone.
 
 ---
 
@@ -346,6 +414,23 @@ Le compte Active Directory n'est jamais touché : désactiver quelqu'un dans Sen
 Vous ne pouvez ni modifier votre propre rôle, ni vous désactiver, ni retirer le dernier
 administrateur actif. Ces refus évitent de se retrouver enfermé dehors.
 
+### La double authentification
+
+La colonne **2FA** indique qui l'a activée. Cliquer sur « active » la **réinitialise** — c'est le
+geste à faire pour quelqu'un qui a perdu son téléphone et n'a plus ses codes de récupération. La
+personne se reconnectera avec son seul mot de passe, et pourra la reconfigurer.
+
+Vous ne pouvez pas l'activer à la place de quelqu'un : l'appairage suppose de scanner un QR code
+avec son propre téléphone.
+
+La case **L'imposer à tous les comptes nominatifs** la rend obligatoire. Attention à ce qu'elle
+implique : au moment où vous la cochez, personne ne l'a encore configurée. Les comptes concernés
+pourront se connecter, mais leur session ne donnera accès **qu'à l'écran Mon compte**, le temps
+qu'ils l'activent. Prévenez avant de cocher.
+
+Les deux comptes techniques ne sont pas concernés : l'écran mural n'a personne pour saisir un code,
+et le compte de secours doit fonctionner quand tout le reste est cassé.
+
 ### Les deux comptes techniques
 
 `sentineluser` et `sentineladmin` ne figurent pas dans la liste et ne peuvent pas y être ajoutés :
@@ -418,6 +503,14 @@ révoqué, l'agent en place continue donc d'émettre pendant le remplacement.
 **J'ai supprimé une règle par erreur : ai-je perdu l'historique de ses alertes ?**
 Non. Les alertes déjà déclenchées restent dans l'historique ; elles perdent seulement le lien vers
 la règle qui les a produites.
+
+**Mon code à six chiffres est toujours refusé.**
+L'horloge de votre téléphone est probablement décalée. Ces codes dépendent de l'heure, et une minute
+d'écart suffit. Activez le réglage automatique de la date et de l'heure.
+
+**J'ai perdu mon téléphone et mes codes de récupération.**
+Demandez à un administrateur de réinitialiser votre double authentification depuis l'écran
+Utilisateurs. Vous vous reconnecterez avec votre seul mot de passe.
 
 **Puis-je faire taire une alerte pendant une maintenance ?**
 Oui : décochez la règle concernée le temps de l'intervention, puis recochez-la. La règle est

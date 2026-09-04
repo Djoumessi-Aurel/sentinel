@@ -153,7 +153,7 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 5. Politique de rétention / purge automatique (voir `DATA_MODEL.md §4`)
 6. Bouton de test d'alerte (déclenchement manuel par canal)
 
-**Phase 4** — livrée, sauf la 2FA
+**Phase 4** — livrée
 1. Authentification Active Directory : aucun mot de passe d'utilisateur n'est
    stocké, et l'accès demande à la fois un compte AD valide et d'avoir été
    déclaré utilisateur par un administrateur (voir `docs/AUTH.md`)
@@ -162,7 +162,11 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 3. Trois rôles — `viewer`, `superviseur`, `admin` — aux droits déclarés en un
    seul endroit (`ROLE_PERMISSIONS`). Le superviseur résout les alertes et voit
    les chemins des fichiers de logs, que le lecteur ne reçoit pas
-4. 2FA TOTP — **reste à faire**, conception dans `docs/AUTH.md §10`
+4. Double authentification TOTP : algorithme RFC 6238 implémenté dans le
+   dépôt et vérifié contre les vecteurs de la RFC, secret chiffré au repos,
+   codes de récupération à usage unique, et interrupteur global qui délivre une
+   session restreinte à l'appairage aux comptes qui ne l'ont pas encore
+   configurée (`docs/AUTH.md §10`)
 
 La préparation faite dès la Phase 1 a tenu sa promesse : seul le contenu
 d'`AuthGuard` a changé, aucune route existante n'a eu à être reprise.

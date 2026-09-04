@@ -232,28 +232,114 @@ routes protégées, comptes techniques, recherche annuaire, ajout, rôles,
 désactivation, session d'affichage, limitation des tentatives et
 non-contournement de celle-ci.
 
-## 10. Reste à faire : la double authentification
+`scripts/qa-2fa.mjs` (`npm run qa:2fa`) couvre la double authentification :
+appairage, confirmation, connexion en deux étapes, codes de récupération à usage
+unique, session restreinte et réinitialisation par un administrateur.
 
-Explicitement reportée. La conception visée :
+## 10. Double authentification
 
-- **TOTP** (`otplib`), compatible Google Authenticator / Authy — pas de
-  dépendance à un fournisseur SMS supplémentaire.
-- Interrupteur **global** (`AuthSettings.twoFactorEnforced`) et interrupteur **par
-  utilisateur** ; règle d'évaluation :
-  `requiresTwoFactor = twoFactorEnforced || user.twoFactorEnabled`.
-- Parcours : `POST /api/auth/2fa/setup` (secret + QR `otpauth://`) puis
-  `POST /api/auth/2fa/verify`. À la connexion, une réponse intermédiaire
-  `{ requires2FA: true, challengeToken }` précède `POST /api/auth/2fa/challenge`.
-- Secret TOTP **chiffré** au repos, et non haché : il doit être relisible pour
-  vérifier les codes.
-- **Codes de récupération** à usage unique (10, affichés une seule fois) pour la
-  perte de l'appareil — table `RecoveryCode(userId, codeHash, usedAt)`.
-- Limitation dédiée sur `/api/auth/2fa/challenge` : six chiffres se devinent
-  vite.
+Livrée. Un code TOTP à six chiffres, renouvelé toutes les trente secondes,
+compatible Google Authenticator, Authy et FreeOTP.
 
-Les deux comptes techniques resteront hors 2FA : `sentineluser` s'affiche sur un
-écran mural sans personne pour saisir un code, et `sentineladmin` est le filet de
-sécurité qui doit fonctionner quand tout le reste est cassé.
+### L'algorithme est écrit ici, pas emprunté
+
+L'implémentation de la RFC 6238 tient dans `apps/backend/src/auth/totp.ts` —
+une trentaine de lignes utiles. La RFC publie des **vecteurs de test**, qui en
+vérifient l'exactitude de bout en bout : les six passent.
+
+Une implémentation qu'on peut prouver juste vaut mieux qu'une dépendance de plus
+dans la chaîne d'approvisionnement d'une application qui supervise une production
+monétique (`docs/SECURITY.md` A08). Le seul paquet ajouté est un générateur de QR
+code, sans dépendance transitive.
+
+### Chiffré, pas haché — et l'inverse pour les codes de récupération
+
+Deux besoins opposés, qu'il ne faut pas confondre :
+
+| Donnée | Traitement | Pourquoi |
+|---|---|---|
+| Secret TOTP | **chiffré** (AES-256-GCM) | Le serveur doit le relire pour recalculer le code attendu |
+| Code de récupération | **empreinte** (HMAC-SHA-256) | On ne le relit jamais, on le compare seulement |
+
+C'est exactement l'inverse du raisonnement tenu pour les mots de passe des
+comptes techniques, qui sont hachés *parce qu'*on n'a jamais à les relire.
+
+Le chiffré est lié à son propriétaire par les données authentifiées de GCM : un
+secret recopié d'une ligne de la table vers une autre ne se déchiffre pas.
+
+`AUTH_ENCRYPTION_KEY` est **obligatoire**, au même titre que `AUTH_JWT_SECRET`.
+Deux clés en sont dérivées par HKDF, une pour chiffrer et une pour signer :
+utiliser la même pour les deux usages est une faute classique, et la dérivation
+coûte quelques microsecondes au démarrage.
+
+### L'appairage n'active rien avant confirmation
+
+`POST /api/auth/2fa/setup` enregistre un secret **sans l'activer** et renvoie le
+QR code. Il ne devient effectif qu'après `POST /api/auth/2fa/confirm` avec un
+premier code correct.
+
+Sans cette étape, quelqu'un qui scanne mal son QR — ou dont le téléphone est à
+l'heure d'un autre fuseau — se retrouverait enfermé dehors à sa connexion
+suivante, sans rien avoir fait de mal.
+
+La confirmation délivre **dix codes de récupération**, affichés une seule fois.
+Ils répondent à un cas parfaitement banal : le téléphone perdu, cassé ou
+réinitialisé. Sans eux, la seule issue serait d'appeler un administrateur — et si
+la personne concernée *est* le dernier administrateur, il n'y en aurait aucune.
+
+Chaque code sert une fois. Il est marqué utilisé plutôt que supprimé : savoir
+qu'un code a servi, et quand, fait partie de la trace d'accès.
+
+### La connexion en deux étapes
+
+1. `POST /api/auth/login` valide le mot de passe et répond
+   `{ requiresTwoFactor: true, challengeToken }` — **sans ouvrir de session**.
+2. `POST /api/auth/2fa/challenge` présente ce jeton et le code.
+
+Le jeton de défi n'est pas une session : il ne donne accès à aucune route, expire
+en cinq minutes, et porte un type distinct (`typ: 'defi-2fa'`) pour ne jamais
+pouvoir être présenté comme un cookie de session.
+
+Le même champ accepte un code TOTP ou un code de récupération : leur forme les
+distingue sans ambiguïté — six chiffres contre dix lettres et chiffres — et
+demander à l'utilisateur de choisir d'abord n'apporterait rien.
+
+`lastLoginAt` n'est mis à jour qu'une fois les **deux** étapes franchies.
+
+### L'interrupteur global, et le piège qu'il cache
+
+`AuthSettings.twoFactorEnforced` impose la double authentification à tous les
+comptes nominatifs.
+
+Le point délicat : **imposer la 2FA n'appaire personne**. Le jour où on l'active,
+aucun compte ne l'a configurée. Deux réponses possibles, toutes deux mauvaises —
+laisser ces comptes entrer normalement viderait le réglage de tout effet ; leur
+refuser l'accès rendrait l'appairage impossible.
+
+Ils reçoivent donc une **session restreinte à l'appairage** : `AuthGuard` la
+limite aux seules routes portant `@AllowedDuringEnrollment()`. Tout le reste
+répond 403. La restriction disparaît dès l'appairage confirmé, sans reconnexion.
+
+C'est la différence entre un contrôle et une case à cocher décorative.
+
+### Réinitialisation
+
+Un administrateur réinitialise la 2FA de quelqu'un par
+`PATCH /api/users/:id { twoFactorEnabled: false }`. Le schéma n'accepte que
+`false` : activer la double authentification suppose de scanner un QR code, ce
+qu'on ne fait pas à la place de quelqu'un d'autre.
+
+### Ce qui reste hors 2FA
+
+Les deux comptes techniques. `sentineluser` s'affiche sur un écran mural sans
+personne pour saisir un code, et `sentineladmin` est le filet de sécurité qui
+doit fonctionner quand tout le reste est cassé.
+
+### Limitation
+
+`POST /api/auth/2fa/challenge` a sa propre limite, distincte de celle de la
+connexion : cinq tentatives par minute et par adresse. Six chiffres se devinent
+en un million d'essais, ce qui est peu.
 
 ## Annexe — préparation faite en Phases 1-3
 

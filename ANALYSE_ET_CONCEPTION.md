@@ -10,9 +10,9 @@ réalisation et leur justification. Lorsqu'un choix s'écarte de ce qui était i
 l'écart est signalé et motivé ; le journal complet de ces arbitrages se trouve dans
 `docs/DECISIONS.md`.
 
-Sont hors périmètre de cette version : la double authentification (TOTP), l'édition en place de
-certaines entités de référence, et l'exploitation d'une instance OpenSearch réelle — l'adaptateur
-correspondant est écrit mais n'a jamais été exercé faute d'environnement.
+Sont hors périmètre de cette version : l'édition en place de certaines entités de référence, et
+l'exploitation d'une instance OpenSearch réelle — l'adaptateur correspondant est écrit mais n'a
+jamais été exercé faute d'environnement.
 
 # Contexte métier
 
@@ -332,6 +332,33 @@ Il n'existe pas de suppression d'utilisateur. La suppression effacerait la trace
 et quand — précisément ce qu'on veut pouvoir consulter après un incident — et rien ne la
 distinguerait d'un clic malheureux. Un compte désactivé conserve son historique et se réactive.
 
+### Double authentification
+
+Un code TOTP à six chiffres, renouvelé toutes les trente secondes, compatible avec les applications
+d'authentification courantes.
+
+L'algorithme de la RFC 6238 est **implémenté dans le dépôt** plutôt qu'emprunté à une bibliothèque :
+il tient en une trentaine de lignes utiles, et la RFC publie des vecteurs de test qui en vérifient
+l'exactitude de bout en bout. Une implémentation qu'on peut prouver juste vaut mieux qu'une
+dépendance de plus dans la chaîne d'approvisionnement d'une application qui supervise une production
+monétique.
+
+Deux traitements opposés, qu'il ne faut pas confondre : le **secret TOTP est chiffré**, parce que le
+serveur doit le relire pour recalculer le code attendu ; les **codes de récupération sont hachés**,
+parce qu'on ne les relit jamais. C'est exactement l'inverse du raisonnement tenu pour les mots de
+passe des comptes techniques.
+
+L'appairage n'active rien tant qu'un premier code correct ne l'a pas confirmé. Sans cette étape,
+quelqu'un qui scanne mal son QR — ou dont le téléphone est à l'heure d'un autre fuseau — se
+retrouverait enfermé dehors à sa connexion suivante, sans avoir rien fait de mal.
+
+Le point qui a demandé le plus de soin est l'interrupteur global. **Imposer la double
+authentification n'appaire personne** : le jour où on l'active, aucun compte ne l'a configurée.
+Laisser ces comptes entrer normalement viderait le réglage de tout effet ; leur refuser l'accès
+rendrait l'appairage impossible. Ils reçoivent donc une **session restreinte**, que le garde limite
+aux seules routes d'appairage, et qui cesse de l'être dès l'appairage confirmé. C'est la différence
+entre un contrôle et une case à cocher décorative.
+
 ### Autres mesures
 
 Session dans un cookie `HttpOnly` / `SameSite=Lax`, hors de portée d'une XSS ; rôle et activation
@@ -369,25 +396,31 @@ le problème a été traité.
 | Désactivation plutôt que suppression d'utilisateur | Conserve la trace des accès ; réversible |
 | Validation Zod partagée | Un seul schéma pour valider côté serveur et typer côté client |
 | Aucun mot de passe utilisateur stocké | L'annuaire fait autorité ; rien à protéger, rien à faire fuir |
+| TOTP implémenté dans le dépôt | Trente lignes prouvées par les vecteurs de la RFC, contre une dépendance de plus |
+| Secret TOTP chiffré, codes de récupération hachés | Le premier doit être relu, les seconds jamais |
+| Appairage confirmé par un premier code | Un QR mal scanné n'enferme personne dehors |
+| Session restreinte tant que la 2FA imposée n'est pas appairée | Sans quoi l'interrupteur global n'imposerait rien |
 
 # Qualité et vérification
 
 La vérification s'appuie sur trois niveaux, choisis en fonction de ce que chacun peut réellement
 détecter.
 
-**Tests unitaires** — 119 tests couvrant en priorité ce qui est subtil et silencieux en cas
+**Tests unitaires** — 156 tests couvrant en priorité ce qui est subtil et silencieux en cas
 d'erreur : les six parseurs de logs, les analyseurs et leurs seuils, le calcul des heures creuses,
-le masquage des données sensibles, le hachage `scrypt`, et l'échappement des filtres LDAP. Cette
-dernière famille mérite d'exister : une recherche annuaire sur `*)(objectClass=*` ne doit pas se
-transformer en énumération complète de l'annuaire.
+le masquage des données sensibles, le hachage `scrypt`, l'échappement des filtres LDAP, le
+chiffrement des secrets, et l'algorithme TOTP — celui-ci vérifié contre les six vecteurs de test
+publiés par la RFC 6238. L'échappement LDAP mérite la même attention : une recherche annuaire sur
+`*)(objectClass=*` ne doit pas se transformer en énumération complète de l'annuaire.
 
-**Scénarios de bout en bout** — un script déroule le parcours d'authentification complet contre un
-backend démarré : 43 vérifications sur les trois rôles, la recherche annuaire, la désactivation, la
-session d'affichage, la limitation des tentatives, et le fait que cette limitation ne se contourne
-pas.
+**Scénarios de bout en bout** — deux scripts déroulent les parcours complets contre un backend
+démarré : 43 vérifications sur l'authentification — les trois rôles, la recherche annuaire, la
+désactivation, la session d'affichage, la limitation des tentatives et son non-contournement — et
+31 sur la double authentification : appairage, connexion en deux étapes, codes de récupération à
+usage unique, session restreinte et réinitialisation par un administrateur.
 
-**Vérification dans un navigateur réel** — 33 contrôles sur les parcours de connexion, de
-redirection et d'affichage différencié par rôle. Ce niveau n'est pas redondant avec les précédents :
+**Vérification dans un navigateur réel** — 48 contrôles sur les parcours de connexion, de
+redirection, d'affichage différencié par rôle et d'appairage de la double authentification. Ce niveau n'est pas redondant avec les précédents :
 plusieurs anomalies n'étaient visibles qu'en exécutant réellement l'interface, notamment sur les
 politiques d'autoplay audio des navigateurs, qui diffèrent entre un élément `<audio>` et un
 `AudioContext` et ne se déduisent d'aucune documentation.
@@ -399,10 +432,6 @@ est publié.
 
 # Limites connues et évolutions
 
-- **Double authentification (TOTP)** : conçue, non implémentée. Le modèle et le parcours sont
-  décrits dans `docs/AUTH.md`. Les deux comptes techniques en resteront exclus — l'écran mural n'a
-  personne pour saisir un code, et le compte de secours doit fonctionner quand tout le reste est
-  cassé.
 - **Adaptateur OpenSearch** : écrit, jamais exercé faute d'instance disponible. Le port est en
   place et le basculement se fait par variable d'environnement, mais la bascule devra être validée
   sur un environnement réel avant mise en production.
@@ -413,3 +442,7 @@ est publié.
   `docs/FRONTEND.md`.
 - **Édition en place de certaines entités** : les serveurs et les services surveillés se créent et
   se suppriment, mais ne se modifient pas. Simplification assumée, à lever si le besoin se confirme.
+- **Perte de `AUTH_ENCRYPTION_KEY`** : elle rend illisibles les secrets de double authentification
+  déjà appairés, et les codes de récupération ne sauvent pas de ce cas, leur empreinte dépendant de
+  la même clé. Les personnes concernées doivent réappairer. La sauvegarde de cette clé est traitée
+  dans le guide de déploiement, à côté de `AGENT_TOKEN_SECRET`, qui appelle la même précaution.

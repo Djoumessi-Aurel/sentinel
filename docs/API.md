@@ -74,18 +74,45 @@ Détail du principe et des règles dans `AUTH.md`.
 
 ```
 GET    /api/auth/status                  public — { mode, directoryReachable }
-POST   /api/auth/login                   public — { username, password } → CurrentUser
-                                         dépose le cookie de session, 5 tentatives/minute
+POST   /api/auth/login                   public — { username, password }
+                                         → CurrentUser (session ouverte, cookie déposé)
+                                         → { requiresTwoFactor: true, challengeToken } sinon
+                                         5 tentatives/minute
 POST   /api/auth/logout                  public — efface le cookie
 GET    /api/auth/me                      utilisateur connecté
 ```
+
+Double authentification (`AUTH.md §10`) :
+
+```
+POST   /api/auth/2fa/challenge           public — { challengeToken, code } → CurrentUser
+                                         accepte un code TOTP ou un code de récupération
+                                         5 tentatives/minute, limite propre
+GET    /api/auth/2fa/status              { enabled, enforced, recoveryCodesRemaining }
+POST   /api/auth/2fa/setup               prépare un appairage → { secret, otpauthUri, qrCode }
+POST   /api/auth/2fa/confirm             { code } → { codes } (récupération, affichés une fois)
+POST   /api/auth/2fa/recovery-codes      régénère les codes
+POST   /api/auth/2fa/disable             refusé si la 2FA est imposée globalement
+
+GET    /api/auth/settings                { twoFactorEnforced }
+PATCH  /api/auth/settings                admin — { twoFactorEnforced }
+```
+
+Quand la double authentification est **imposée** et qu'un compte ne l'a pas
+encore appairée, la session délivrée est **restreinte** : seules les routes
+`/api/auth/me`, `/api/auth/logout`, `/api/auth/settings` et `/api/auth/2fa/*`
+répondent, tout le reste renvoie `403`.
 
 ```
 GET    /api/users                        admin — liste des utilisateurs déclarés
 GET    /api/users/directory?q=...        admin — recherche dans l'annuaire (2 caractères min)
 POST   /api/users                        admin — { username, role } ; username doit exister dans l'annuaire
-PATCH  /api/users/:id                    admin — { role?, enabled? }
+PATCH  /api/users/:id                    admin — { role?, enabled?, twoFactorEnabled? }
 ```
+
+`twoFactorEnabled` n'accepte que `false` : un administrateur **réinitialise** la
+double authentification de quelqu'un qui a perdu son téléphone, il ne l'active
+pas à sa place — l'appairage suppose de scanner un QR code.
 
 **Il n'y a pas de suppression d'utilisateur** : on retire l'accès en passant
 `enabled: false`. Voir `AUTH.md §2`.

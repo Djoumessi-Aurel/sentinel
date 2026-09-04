@@ -130,10 +130,15 @@ protégé.
 - Le message de refus est le même pour un mot de passe faux, un compte inconnu
   et un compte désactivé : distinguer les cas révélerait quels identifiants
   existent.
-- Limitation des tentatives de connexion : 5 par minute et par adresse.
+- Limitation des tentatives de connexion : 5 par minute et par adresse, et une
+  limite distincte sur la seconde étape de la double authentification.
+- **Double authentification TOTP** (`docs/AUTH.md §10`) : algorithme RFC 6238
+  implémenté et vérifié contre les vecteurs de test de la RFC, secret chiffré au
+  repos, codes de récupération à usage unique, et session restreinte à
+  l'appairage quand la 2FA est imposée mais pas encore configurée.
 - Les tokens d'agent sont révocables (`IngestionAgentToken.revokedAt`) : un
   serveur décommissionné se coupe sans redéploiement.
-- 2FA TOTP : prévue, pas encore livrée (`docs/AUTH.md §2.4`).
+
 
 ### Piège rencontré : `trust proxy` et le contournement de la limitation
 

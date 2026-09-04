@@ -1,5 +1,6 @@
 import type {
   AlertEvent,
+  AuthSettings,
   AuthStatus,
   AnalyzerResult,
   AnalyzerRule,
@@ -17,12 +18,16 @@ import type {
   GlobalConfig,
   ListAlertsQuery,
   LoginDto,
+  LoginResult,
   MonitoredService,
   Paginated,
+  RecoveryCodes,
   SearchLogsQuery,
   Server,
   StoredLogEntry,
   UpdateAppConfigDto,
+  TwoFactorSetup,
+  TwoFactorStatus,
   UpdateGlobalConfigDto,
   UpdateUserDto,
   User,
@@ -104,9 +109,31 @@ export const api = {
 
   auth: {
     status: () => request<AuthStatus>('/auth/status'),
-    login: (dto: LoginDto) => request<CurrentUser>('/auth/login', { method: 'POST', body: JSON.stringify(dto) }),
+    /** Peut renvoyer un défi plutôt qu'une session : voir `estUnDefi`. */
+    login: (dto: LoginDto) => request<LoginResult>('/auth/login', { method: 'POST', body: JSON.stringify(dto) }),
     logout: () => request<void>('/auth/logout', { method: 'POST' }),
     me: () => request<CurrentUser>('/auth/me'),
+
+    /** Réglage global de la double authentification. */
+    settings: () => request<AuthSettings>('/auth/settings'),
+    updateSettings: (dto: AuthSettings) =>
+      request<AuthSettings>('/auth/settings', { method: 'PATCH', body: JSON.stringify(dto) }),
+  },
+
+  twoFactor: {
+    status: () => request<TwoFactorStatus>('/auth/2fa/status'),
+    /** Prépare un appairage. N'active rien tant qu'il n'est pas confirmé. */
+    setup: () => request<TwoFactorSetup>('/auth/2fa/setup', { method: 'POST' }),
+    confirm: (code: string) =>
+      request<RecoveryCodes>('/auth/2fa/confirm', { method: 'POST', body: JSON.stringify({ code }) }),
+    /** Seconde étape de connexion. */
+    challenge: (challengeToken: string, code: string) =>
+      request<LoginResult>('/auth/2fa/challenge', {
+        method: 'POST',
+        body: JSON.stringify({ challengeToken, code }),
+      }),
+    regenerateRecoveryCodes: () => request<RecoveryCodes>('/auth/2fa/recovery-codes', { method: 'POST' }),
+    disable: () => request<void>('/auth/2fa/disable', { method: 'POST' }),
   },
 
   users: {

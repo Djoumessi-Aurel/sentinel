@@ -305,3 +305,55 @@ serveur, et brouillait la supervision, où un 500 doit rester un signal rare. Le
 filtre global traduit désormais ces codes (P2025 → 404, P2002 → 409,
 P2003 → 400) en réécrivant les messages, ceux de Prisma nommant tables et
 colonnes.
+
+## D010 — TOTP implémenté dans le dépôt, et une session restreinte à l'appairage
+
+**Date** : 2026-09-04
+**Statut** : appliqué
+**Documents concernés** : `AUTH.md §10`, `SECURITY.md A07`, `API.md`
+
+### Contexte
+`AUTH.md` prévoyait la double authentification par TOTP et recommandait la
+bibliothèque `otplib`. Deux questions se sont posées à l'implémentation : d'où
+vient l'algorithme, et que faire des comptes qui n'ont pas encore appairé le jour
+où on impose la 2FA.
+
+### Décision
+
+**L'algorithme est écrit dans le dépôt.** La RFC 6238 tient en une trentaine de
+lignes utiles, et publie des vecteurs de test qui en vérifient l'exactitude de
+bout en bout. Une implémentation qu'on peut prouver juste vaut mieux qu'une
+dépendance de plus dans la chaîne d'approvisionnement d'une application qui
+supervise une production monétique. Le seul paquet ajouté est un générateur de QR
+code, choisi parmi les alternatives pour n'avoir aucune dépendance transitive.
+
+**Le secret TOTP est chiffré, les codes de récupération sont hachés.** Le premier
+doit être relu pour recalculer le code attendu ; les seconds ne sont jamais relus,
+seulement comparés. C'est l'inverse du raisonnement tenu pour les mots de passe
+des comptes techniques, et la confusion des deux est une erreur fréquente.
+
+**Une seule clé de configuration, deux clés dérivées par HKDF.** Chiffrer et
+signer avec la même clé est une faute classique ; la dérivation coûte quelques
+microsecondes au démarrage et supprime la question.
+
+**Une session restreinte à l'appairage.** Imposer la 2FA n'appaire personne : le
+jour où on l'active, aucun compte ne l'a configurée. Les laisser entrer
+normalement viderait le réglage de tout effet ; leur refuser l'accès rendrait
+l'appairage impossible. Ils reçoivent donc une session que le garde limite aux
+seules routes d'appairage, et qui cesse de l'être dès l'appairage confirmé, sans
+reconnexion.
+
+### Conséquences
+`AUTH_ENCRYPTION_KEY` devient obligatoire au démarrage. La rendre facultative
+aurait ouvert un état à demi configuré, où la double authentification est activée
+pour des comptes mais illisible par le serveur — le pire des cas, puisqu'il ne se
+découvre qu'à la connexion suivante d'un utilisateur.
+
+Sa perte rend illisibles les secrets déjà appairés : les personnes concernées
+doivent réappairer. Les codes de récupération ne sauvent pas de ce cas, puisque
+leur empreinte dépend de la même clé. C'est documenté dans le guide de
+déploiement, à côté de `AGENT_TOKEN_SECRET`, qui appelle la même précaution.
+
+L'appairage en deux temps — préparer, puis confirmer par un premier code — évite
+qu'un QR mal scanné, ou un téléphone à l'heure d'un autre fuseau, n'enferme
+quelqu'un dehors sans qu'il ait rien fait de mal.

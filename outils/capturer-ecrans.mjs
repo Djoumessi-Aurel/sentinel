@@ -29,6 +29,8 @@ const LARGEUR = 1280;
 const COMPTES = {
   admin: { username: 'sentineladmin', password: 'sentinel-admin-dev-2026' },
   lecteur: { username: 'jkamga', password: 'peu importe en mode dev' },
+  /** Un compte nominatif, pour illustrer l'appairage de la double authentification. */
+  superviseur: { username: 'ctchoua', password: 'peu importe en mode dev' },
 };
 
 /** Personne de l'annuaire fictif ajoutée le temps des captures. */
@@ -73,6 +75,21 @@ function resoudreNavigateur() {
 // fois réduits à la largeur d'une page.
 
 const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Générateur de codes TOTP, repris du backend compilé.
+ *
+ * Sert uniquement à photographier un appairage réel. Absent tant que le backend
+ * n'est pas compilé : les captures de double authentification sont alors
+ * simplement omises, plutôt que d'arrêter tout le reste.
+ */
+const genererCode = (() => {
+  try {
+    return createRequire(import.meta.url)(join(RACINE, 'apps/backend/dist/auth/totp.js')).genererCode;
+  } catch {
+    return null;
+  }
+})();
 
 async function main() {
   const { chromium, origine } = resoudreNavigateur();
@@ -196,6 +213,55 @@ async function main() {
   await connecter(COMPTES.lecteur);
   await aller('/applications');
   await capturer('13-applications-vue-lecteur', 900);
+
+  // --- Double authentification -------------------------------------------
+  //
+  // L'appairage est réellement effectué le temps des captures, puis défait :
+  // photographier un écran vide n'apprendrait rien, et laisser un compte de
+  // démonstration appairé obligerait la personne suivante à le réinitialiser.
+  await deconnecter();
+  await connecter(COMPTES.superviseur);
+  await aller('/compte');
+  await capturer('14-mon-compte', 760);
+
+  const boutonActiver = page.locator('button', { hasText: 'Activer la double authentification' }).first();
+  if ((await boutonActiver.count()) > 0 && genererCode) {
+    await boutonActiver.click();
+    await attendre(1800);
+    await page.click('summary').catch(() => {});
+    await attendre(400);
+    await capturer('15-appairage-2fa', 1000);
+
+    const secret = (await page.locator('code').first().innerText().catch(() => '')).trim();
+    if (/^[A-Z2-7]{32}$/.test(secret)) {
+      await page.fill('input[inputmode=numeric]', genererCode(secret));
+      await page.click('button:has-text("Activer")');
+      await attendre(2000);
+      await capturer('16-codes-de-recuperation', 900);
+
+      // Seconde étape de connexion.
+      await deconnecter();
+      await aller('/login');
+      await page.fill('#username', COMPTES.superviseur.username);
+      await page.fill('#password', COMPTES.superviseur.password);
+      await page.click('button[type=submit]');
+      await attendre(1800);
+      await capturer('17-connexion-second-facteur', 700);
+
+      await page.fill('#code', genererCode(secret));
+      await page.click('button[type=submit]');
+      await page.waitForFunction(() => !location.pathname.startsWith('/login'), { timeout: 15000 }).catch(() => {});
+      await attendre(1200);
+
+      // On repart d'un compte sans double authentification.
+      await aller('/compte');
+      page.once('dialog', (d) => d.accept());
+      await page.click('button:has-text("Désactiver")').catch(() => {});
+      await attendre(1500);
+    }
+  } else if (!genererCode) {
+    console.log('  (2FA ignorée : compiler le backend d’abord — npm run build)');
+  }
 
   await navigateur.close();
   console.log(`\nCaptures écrites dans ${SORTIE}`);

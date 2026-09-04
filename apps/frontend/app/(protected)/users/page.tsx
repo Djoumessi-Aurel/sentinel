@@ -1,7 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, USER_ROLES, type DirectoryEntry, type User, type UserRole } from '@sentinel/shared-types';
+import {
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  USER_ROLES,
+  type AuthSettings,
+  type DirectoryEntry,
+  type User,
+  type UserRole,
+} from '@sentinel/shared-types';
 
 import { api } from '@/lib/api-client';
 import { usePeut, useSession } from '@/components/session-provider';
@@ -21,12 +29,15 @@ export default function PageUtilisateurs() {
   const { user: connecte } = useSession();
   const gestionnaire = usePeut('gererLesUtilisateurs');
   const [utilisateurs, setUtilisateurs] = useState<User[] | null>(null);
+  const [reglages, setReglages] = useState<AuthSettings | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     try {
-      setUtilisateurs(await api.users.list());
+      const [liste, reglagesAuth] = await Promise.all([api.users.list(), api.auth.settings()]);
+      setUtilisateurs(liste);
+      setReglages(reglagesAuth);
       setErreur(null);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : 'Chargement impossible');
@@ -100,6 +111,7 @@ export default function PageUtilisateurs() {
                   <th className="px-4 py-2 font-medium">Personne</th>
                   <th className="px-4 py-2 font-medium">Rôle</th>
                   <th className="px-4 py-2 font-medium">Dernière connexion</th>
+                  <th className="px-4 py-2 font-medium">2FA</th>
                   <th className="px-4 py-2 font-medium">État</th>
                   <th className="px-4 py-2" />
                 </tr>
@@ -141,6 +153,26 @@ export default function PageUtilisateurs() {
                       </td>
                       <td className="px-4 py-2.5 text-slate-600">{dateCourte(u.lastLoginAt)}</td>
                       <td className="px-4 py-2.5">
+                        {u.twoFactorEnabled ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!confirm(`Réinitialiser la double authentification de ${u.displayName} ? Cette personne devra la reconfigurer.`)) return;
+                              void agir(
+                                () => api.users.update(u.id, { twoFactorEnabled: false }),
+                                `La double authentification de ${u.username} a été réinitialisée.`,
+                              );
+                            }}
+                            title="Réinitialiser — en cas de téléphone perdu"
+                            className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700 transition hover:bg-emerald-100"
+                          >
+                            active
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
                         {u.enabled ? (
                           <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">actif</span>
                         ) : (
@@ -178,6 +210,34 @@ export default function PageUtilisateurs() {
           distinguerait d’un clic malheureux. Le compte Active Directory n’est jamais touché. On ne peut ni modifier son
           propre rôle, ni se désactiver, ni retirer le dernier administrateur actif.
         </p>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-surface-raised p-4">
+        <h2 className="font-medium">Double authentification</h2>
+        <label className="flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={reglages?.twoFactorEnforced ?? false}
+            disabled={reglages === null}
+            onChange={(e) =>
+              agir(
+                () => api.auth.updateSettings({ twoFactorEnforced: e.target.checked }),
+                e.target.checked
+                  ? 'La double authentification est désormais obligatoire.'
+                  : 'La double authentification redevient facultative.',
+              )
+            }
+          />
+          <span>
+            L’imposer à tous les comptes nominatifs
+            <span className="mt-0.5 block text-xs text-slate-500">
+              Les comptes qui ne l’ont pas encore configurée ne pourront rien faire d’autre que l’activer, à leur
+              prochaine connexion. Les deux comptes techniques ne sont pas concernés : l’écran mural n’a personne pour
+              saisir un code, et le compte de secours doit fonctionner quand tout le reste est cassé.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-surface-raised p-4">

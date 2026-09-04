@@ -25,6 +25,8 @@ apps/frontend/
 │   │   ├── config/
 │   │   │   ├── global/page.tsx       # config globale (couleurs, canaux/analyseurs par défaut)
 │   │   │   └── generalize/page.tsx   # écran du bouton "généraliser" (sélection des applis)
+│   │   ├── compte/
+│   │   │   └── page.tsx              # mon compte : double authentification, codes de récupération
 │   │   ├── users/
 │   │   │   └── page.tsx              # gestion des utilisateurs (administrateurs)
 │   │   └── alerts/
@@ -71,6 +73,23 @@ Le cookie de session étant `HttpOnly` et déposé par une autre origine que
 l'interface, `api-client` passe `credentials: 'include'` et le client Socket.IO
 `withCredentials: true`. Sans cela, tout reviendrait en `401` sans que rien ne
 l'explique à l'écran.
+
+### Double authentification
+
+La page de connexion gère les deux étapes sans changer d'écran : quand la réponse
+est un défi plutôt qu'une session, le formulaire bascule sur la saisie du code.
+Le champ porte `autocomplete="one-time-code"` et `inputmode="numeric"`, pour que
+le téléphone propose le code reçu et affiche un pavé numérique.
+
+Le QR code d'appairage arrive du serveur en `data:image/svg+xml;base64,…` et
+s'affiche dans un `<img>`. Jamais en balisage injecté : l'interface n'insère pas
+de SVG venu du serveur dans le DOM.
+
+Quand la 2FA est imposée et pas encore appairée, le backend délivre une session
+restreinte. `SessionProvider` amène alors l'utilisateur sur `/compte` et
+`AppHeader` masque toute la navigation : le backend refuserait de toute façon le
+reste, mais le laisser se heurter à des 403 sur chaque écran serait
+incompréhensible.
 
 ## 2. Composants clés
 

@@ -73,6 +73,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, surExpiration);
   }, []);
 
+  // Session restreinte à l'appairage : le backend refuse déjà tout le reste,
+  // mais laisser l'utilisateur se heurter à des 403 sur chaque écran serait
+  // incompréhensible. On l'amène là où il peut agir.
+  useEffect(() => {
+    if (etat.statut !== 'connecte') return;
+    if (!etat.user.mustEnrollTwoFactor) return;
+    if (pathname === '/compte') return;
+    router.replace('/compte');
+  }, [etat, pathname, router]);
+
   useEffect(() => {
     if (etat.statut !== 'anonyme') return;
     // On retient la page demandée pour y revenir après la connexion : atterrir
