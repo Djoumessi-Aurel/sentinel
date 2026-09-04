@@ -1,8 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import { AuthService } from '../../auth/auth.service';
+import { ALLOWED_DURING_ENROLLMENT } from './enrollment.decorator';
 import { PUBLIC_ROUTE } from './public.decorator';
 import { toRequestUser, type RequestUser } from './request-user';
 
@@ -48,6 +49,23 @@ export class AuthGuard implements CanActivate {
 
     const user = await this.auth.resolveSession(token);
     if (!user) throw new UnauthorizedException('Session expirée ou révoquée');
+
+    // Session restreinte : quand la double authentification est imposée et pas
+    // encore appairée, la session ne donne accès qu'aux routes de l'appairage.
+    // Sans ce contrôle, imposer la 2FA n'aurait aucun effet sur les comptes qui
+    // ne l'ont pas encore configurée — c'est-à-dire sur tout le monde, le jour
+    // où on l'impose.
+    if (user.mustEnrollTwoFactor === true) {
+      const autorisee = this.reflector.getAllAndOverride<boolean>(ALLOWED_DURING_ENROLLMENT, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!autorisee) {
+        throw new ForbiddenException(
+          'La double authentification est obligatoire : configurez-la pour accéder à l’application.',
+        );
+      }
+    }
 
     request.user = toRequestUser(user);
     return true;

@@ -11,6 +11,7 @@ import { DevDirectory } from './directory/dev.directory';
 import { DIRECTORY, type Directory } from './directory/directory.interface';
 import { LdapDirectory } from './directory/ldap.directory';
 import { UsersController } from './users.controller';
+import { TwoFactorService } from './two-factor.service';
 import { UsersService } from './users.service';
 
 /**
@@ -35,6 +36,7 @@ import { UsersService } from './users.service';
   controllers: [AuthController, UsersController],
   providers: [
     AuthService,
+    TwoFactorService,
     UsersService,
     AuthGuard,
     RolesGuard,
@@ -46,6 +48,6 @@ import { UsersService } from './users.service';
       useFactory: (env: Env): Directory => (env.AUTH_MODE === 'ldap' ? new LdapDirectory(env) : new DevDirectory()),
     },
   ],
-  exports: [AuthService, UsersService, AuthGuard, RolesGuard, DIRECTORY],
+  exports: [TwoFactorService, AuthService, UsersService, AuthGuard, RolesGuard, DIRECTORY],
 })
 export class AuthModule {}

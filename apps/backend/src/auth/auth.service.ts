@@ -14,6 +14,7 @@ import type { Env } from '../common/config/env';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DIRECTORY, type Directory } from './directory/directory.interface';
 import { verifyPassword } from './password-hash';
+import { TwoFactorService } from './two-factor.service';
 
 export interface SessionToken {
   token: string;
@@ -26,7 +27,29 @@ interface JwtPayload {
   role: UserRole;
   name: string;
   builtin: boolean;
+  /** Session restreinte à l'appairage de la double authentification. */
+  enroll?: true;
 }
+
+/**
+ * Jeton de la seconde étape de connexion.
+ *
+ * Ce n'est **pas** une session : il ne donne accès à aucune route, expire en
+ * quelques minutes, et porte un type distinct pour qu'un jeton de défi ne
+ * puisse jamais être présenté comme un cookie de session.
+ */
+interface ChallengePayload {
+  sub: string;
+  typ: 'defi-2fa';
+}
+
+/** Durée de vie du défi : le temps de sortir son téléphone, pas davantage. */
+const DUREE_DEFI_SECONDES = 300;
+
+/** Connexion aboutie, ou second facteur réclamé. */
+export type LoginOutcome =
+  | { statut: 'ouverte'; user: CurrentUser; session: SessionToken }
+  | { statut: 'second-facteur'; challengeToken: string };
 
 /**
  * Authentification (docs/AUTH.md).
@@ -52,6 +75,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly twoFactor: TwoFactorService,
     @Inject(DIRECTORY) private readonly directory: Directory,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -60,14 +84,78 @@ export class AuthService {
     return { mode: this.env.AUTH_MODE, directoryReachable: await this.directory.isReachable() };
   }
 
-  async login(dto: LoginDto, origin: string): Promise<{ user: CurrentUser; session: SessionToken }> {
+  async login(dto: LoginDto, origin: string): Promise<LoginOutcome> {
     const username = dto.username.trim();
 
-    const user = isBuiltinUsername(username)
-      ? await this.authenticateBuiltin(username.toLowerCase(), dto.password, origin)
-      : await this.authenticateDirectoryUser(username, dto.password, origin);
+    // Les comptes techniques n'ont jamais de second facteur : l'écran mural n'a
+    // personne pour saisir un code, et le compte de secours doit fonctionner
+    // quand tout le reste est cassé (docs/AUTH.md).
+    if (isBuiltinUsername(username)) {
+      const technique = await this.authenticateBuiltin(username.toLowerCase(), dto.password, origin);
+      return { statut: 'ouverte', user: technique, session: this.issueSession(technique) };
+    }
 
-    return { user, session: this.issueSession(user) };
+    const user = await this.authenticateDirectoryUser(username, dto.password, origin);
+    const etat = await this.prisma.user.findUnique({ where: { username: user.username } });
+    const appairee = etat?.twoFactorEnabled === true && etat.twoFactorConfirmedAt !== null;
+
+    if (appairee) {
+      this.logger.log(`Second facteur demandé à « ${username} »`);
+      const payload: ChallengePayload = { sub: user.username, typ: 'defi-2fa' };
+      return {
+        statut: 'second-facteur',
+        challengeToken: this.jwt.sign(payload, { expiresIn: DUREE_DEFI_SECONDES }),
+      };
+    }
+
+    const { twoFactorEnforced } = await this.twoFactor.settings();
+    if (twoFactorEnforced) {
+      // Imposée, mais pas encore configurée : on ouvre une session qui ne permet
+      // que l'appairage. Laisser entrer normalement viderait le réglage global
+      // de tout effet ; refuser l'accès rendrait l'appairage impossible.
+      this.logger.log(`Appairage de la double authentification exigé de « ${username} »`);
+      const restreint: CurrentUser = { ...user, mustEnrollTwoFactor: true };
+      return { statut: 'ouverte', user: restreint, session: this.issueSession(restreint) };
+    }
+
+    await this.marquerConnexion(user.username);
+    return { statut: 'ouverte', user, session: this.issueSession(user) };
+  }
+
+  /**
+   * Seconde étape : le jeton de défi et le code présentés ensemble.
+   *
+   * Le jeton ne prouve que la réussite de la première étape ; c'est le code qui
+   * ouvre la session.
+   */
+  async completerSecondFacteur(challengeToken: string, code: string, origin: string): Promise<LoginOutcome> {
+    let payload: ChallengePayload;
+    try {
+      payload = this.jwt.verify<ChallengePayload>(challengeToken);
+    } catch {
+      throw new UnauthorizedException('Session de connexion expirée. Recommencer.');
+    }
+    if (payload.typ !== 'defi-2fa') throw new UnauthorizedException('Session de connexion invalide.');
+
+    await this.twoFactor.verifierSecondFacteur(payload.sub, code);
+
+    const user = await this.prisma.user.findUnique({ where: { username: payload.sub } });
+    if (!user || !user.enabled) this.refuse(payload.sub, origin, 'compte désactivé entre les deux étapes');
+
+    await this.marquerConnexion(user.username);
+    this.logger.log(`Connexion de « ${user.username} » validée par second facteur depuis ${origin}`);
+
+    const courant: CurrentUser = {
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role as UserRole,
+      builtin: false,
+    };
+    return { statut: 'ouverte', user: courant, session: this.issueSession(courant) };
+  }
+
+  private async marquerConnexion(username: string): Promise<void> {
+    await this.prisma.user.update({ where: { username }, data: { lastLoginAt: new Date() } });
   }
 
   /** Comptes techniques : empreinte locale, aucun appel à l'annuaire. */
@@ -121,9 +209,9 @@ export class AuthService {
       this.refuse(username, origin, 'refusé par l’annuaire');
     }
 
-    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-
-    this.logger.log(`Connexion de « ${username} » (${user.role}) depuis ${origin}`);
+    // `lastLoginAt` n'est pas mis à jour ici : la connexion n'est pas encore
+    // aboutie si un second facteur est réclamé. Elle l'est à l'étape suivante.
+    this.logger.log(`Mot de passe validé pour « ${username} » (${user.role}) depuis ${origin}`);
     return {
       username: user.username,
       displayName: user.displayName,
@@ -157,6 +245,7 @@ export class AuthService {
       role: user.role,
       name: user.displayName,
       builtin: user.builtin,
+      ...(user.mustEnrollTwoFactor ? { enroll: true as const } : {}),
     };
 
     return { token: this.jwt.sign(payload, { expiresIn: maxAge }), maxAge };
@@ -193,11 +282,16 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { username: payload.sub } });
     if (!user || !user.enabled) return null;
 
+    // Une session d'appairage cesse de l'être dès que l'appairage est fait :
+    // l'utilisateur n'a pas à se reconnecter pour retrouver ses droits.
+    const appairee = user.twoFactorEnabled && user.twoFactorConfirmedAt !== null;
+
     return {
       username: user.username,
       displayName: user.displayName,
       role: user.role as UserRole,
       builtin: false,
+      ...(payload.enroll && !appairee ? { mustEnrollTwoFactor: true as const } : {}),
     };
   }
 }

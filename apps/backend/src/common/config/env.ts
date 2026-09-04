@@ -66,6 +66,18 @@ export const envSchema = z
      * le remarque.
      */
     AUTH_VIEWER_SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+    /**
+     * Clé de protection des secrets de double authentification, 32 octets au
+     * moins, en hexadécimal ou en base64.
+     *
+     * Obligatoire, au même titre que `AUTH_JWT_SECRET` : la rendre facultative
+     * ouvrirait un état à demi configuré où la double authentification est
+     * activée pour des comptes mais illisible par le serveur.
+     *
+     * Générer : node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+     */
+    AUTH_ENCRYPTION_KEY: z.string().min(44, 'AUTH_ENCRYPTION_KEY doit représenter au moins 32 octets'),
+
     /** Empreintes scrypt des deux comptes techniques (`npm run auth:hash-password`). */
     SENTINEL_USER_PASSWORD_HASH: z.string().optional(),
     SENTINEL_ADMIN_PASSWORD_HASH: z.string().optional(),

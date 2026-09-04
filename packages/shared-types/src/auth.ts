@@ -126,6 +126,8 @@ export const userSchema = z.object({
   lastLoginAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  /** Double authentification effectivement appairée sur ce compte. */
+  twoFactorEnabled: z.boolean(),
 });
 
 export type User = z.infer<typeof userSchema>;
@@ -137,6 +139,16 @@ export interface CurrentUser {
   role: UserRole;
   /** `true` pour les comptes techniques : ils ne sont pas administrables. */
   builtin: boolean;
+  /**
+   * La double authentification est imposée, mais ce compte ne l'a pas encore
+   * appairée. La session délivrée est alors **restreinte à l'appairage** : le
+   * backend refuse tout le reste.
+   *
+   * Sans cette restriction, imposer la 2FA n'aurait aucun effet sur les comptes
+   * qui ne l'ont pas encore configurée — c'est-à-dire, le jour où on l'impose,
+   * sur tout le monde.
+   */
+  mustEnrollTwoFactor?: boolean;
 }
 
 /** Personne trouvée dans l'annuaire, avant d'être ajoutée aux utilisateurs. */
@@ -171,6 +183,12 @@ export const updateUserSchema = z
   .object({
     role: z.enum(USER_ROLES),
     enabled: z.boolean(),
+    /**
+     * Seule la valeur `false` est acceptée : un administrateur peut **réinitialiser**
+     * la double authentification de quelqu'un qui a perdu son téléphone, mais ne
+     * peut pas l'activer à sa place — l'appairage suppose de scanner un QR code.
+     */
+    twoFactorEnabled: z.literal(false),
   })
   .partial();
 
@@ -188,3 +206,77 @@ export interface AuthStatus {
   /** `true` si l'annuaire répond : sans lui, seuls les comptes techniques passent. */
   directoryReachable: boolean;
 }
+
+// --- Double authentification (docs/AUTH.md) ---------------------------------
+
+/** Un code TOTP : six chiffres, espaces tolérés à la saisie. */
+export const totpCodeSchema = z
+  .string()
+  .trim()
+  .transform((valeur) => valeur.replace(/\s/g, ''))
+  .refine((valeur) => /^\d{6}$/.test(valeur), 'Un code à six chiffres est attendu');
+
+/**
+ * Second facteur : un code TOTP, ou un code de récupération.
+ *
+ * Un seul champ pour les deux : demander à l'utilisateur de choisir d'abord
+ * lequel il s'apprête à saisir n'apporte rien — la forme du code suffit à les
+ * distinguer.
+ */
+export const secondFacteurSchema = z.string().trim().min(6).max(24);
+
+export const twoFactorChallengeSchema = z.object({
+  challengeToken: z.string().min(1).max(4096),
+  code: secondFacteurSchema,
+});
+
+export type TwoFactorChallengeDto = z.infer<typeof twoFactorChallengeSchema>;
+
+export const twoFactorVerifySchema = z.object({ code: totpCodeSchema });
+
+export type TwoFactorVerifyDto = z.infer<typeof twoFactorVerifySchema>;
+
+export const authSettingsSchema = z.object({ twoFactorEnforced: z.boolean() });
+
+export type AuthSettings = z.infer<typeof authSettingsSchema>;
+
+/** Réponse de `POST /api/auth/2fa/setup` : à afficher, jamais à conserver. */
+export interface TwoFactorSetup {
+  /** Secret en base32, pour la saisie manuelle quand le QR ne peut pas être scanné. */
+  secret: string;
+  otpauthUri: string;
+  /** QR code prêt à l'emploi, en `data:image/svg+xml;base64,...`. */
+  qrCode: string;
+}
+
+/** État de la double authentification pour l'utilisateur connecté. */
+export interface TwoFactorStatus {
+  /** Appairée et confirmée sur ce compte. */
+  enabled: boolean;
+  /** Imposée à tous par le réglage global. */
+  enforced: boolean;
+  /** Codes de récupération encore utilisables. */
+  recoveryCodesRemaining: number;
+}
+
+/** Codes de récupération, renvoyés **une seule fois**. */
+export interface RecoveryCodes {
+  codes: string[];
+}
+
+/**
+ * Réponse de la connexion : soit la session est ouverte, soit un second facteur
+ * est réclamé.
+ *
+ * Le jeton de défi n'est pas une session : il ne donne accès à rien, ne vaut que
+ * quelques minutes, et ne sert qu'à rattacher la seconde étape à la première.
+ */
+export interface LoginChallenge {
+  requiresTwoFactor: true;
+  challengeToken: string;
+}
+
+export type LoginResult = CurrentUser | LoginChallenge;
+
+export const estUnDefi = (resultat: LoginResult): resultat is LoginChallenge =>
+  'requiresTwoFactor' in resultat && resultat.requiresTwoFactor;

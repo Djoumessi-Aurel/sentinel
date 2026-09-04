@@ -93,9 +93,9 @@ verifier("l'état de l'authentification est accessible", r.statut === 200, JSON.
 
 console.log('');
 console.log('--- Comptes techniques ---');
-r = await appel('POST', '/auth/login', { username: 'sentineladmin', password: 'mauvais' });
+r = await connexion('sentineladmin', 'mauvais');
 verifier('mot de passe incorrect refusé', r.statut === 401, r.donnees?.message);
-r = await appel('POST', '/auth/login', { username: 'inconnu', password: 'x' });
+r = await connexion('inconnu', 'x');
 verifier('utilisateur inconnu refusé', r.statut === 401);
 verifier(
   'le message ne distingue pas les deux cas',

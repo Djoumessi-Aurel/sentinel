@@ -217,8 +217,58 @@ model User {
   createdBy   String?   @db.VarChar(64)
   updatedBy   String?   @db.VarChar(64)
 
+  // --- Double authentification (docs/AUTH.md) ---
+  /** Interrupteur individuel. Le réglage global peut l'imposer par-dessus. */
+  twoFactorEnabled     Boolean   @default(false)
+  /**
+   * Secret TOTP, **chiffré** et non haché : le serveur doit pouvoir le relire
+   * pour recalculer le code attendu. C'est l'inverse d'un mot de passe.
+   */
+  twoFactorSecret      String?   @db.Text
+  /** Date à laquelle un premier code correct a confirmé l'appairage. */
+  twoFactorConfirmedAt DateTime?
+
+  recoveryCodes RecoveryCode[]
+
   @@index([enabled])
   @@map("users")
+}
+
+/**
+ * Réglages d'authentification, ligne unique.
+ *
+ * Séparée de `GlobalConfig` à dessein : celle-ci décrit l'affichage et les
+ * canaux d'alerte, recopiés vers les applications. Une politique de sécurité n'a
+ * rien à faire dans un modèle destiné à être dupliqué.
+ */
+model AuthSettings {
+  id                String   @id @default("singleton") @db.VarChar(16)
+  /** Impose la double authentification à tous les comptes nominatifs. */
+  twoFactorEnforced Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+  updatedBy         String?  @db.VarChar(64)
+
+  @@map("auth_settings")
+}
+
+/**
+ * Codes de récupération, à usage unique.
+ *
+ * Seule l'empreinte est stockée. `usedAt` marque la consommation plutôt que de
+ * supprimer la ligne : savoir qu'un code a servi, et quand, fait partie de la
+ * trace d'accès.
+ */
+model RecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  codeHash  String    @db.VarChar(64)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("recovery_codes")
 }
 
 // Adaptateur de développement du LogStore (docs/DECISIONS.md D002).

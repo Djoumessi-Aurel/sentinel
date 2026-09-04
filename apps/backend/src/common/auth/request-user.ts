@@ -15,6 +15,8 @@ export interface RequestUser {
   displayName: string;
   role: UserRole;
   builtin: boolean;
+  /** Session ouverte uniquement pour appairer la double authentification. */
+  mustEnrollTwoFactor: boolean;
 }
 
 export const toRequestUser = (user: CurrentUser): RequestUser => ({
@@ -23,4 +25,5 @@ export const toRequestUser = (user: CurrentUser): RequestUser => ({
   displayName: user.displayName,
   role: user.role,
   builtin: user.builtin,
+  mustEnrollTwoFactor: user.mustEnrollTwoFactor === true,
 });

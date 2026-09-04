@@ -12,6 +12,7 @@ import {
 import type { RequestUser } from '../common/auth/request-user';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DIRECTORY, type Directory } from './directory/directory.interface';
+import { TwoFactorService } from './two-factor.service';
 
 /** Plafond de résultats d'une recherche dans l'annuaire. */
 const SEARCH_LIMIT = 25;
@@ -29,6 +30,7 @@ const SEARCH_LIMIT = 25;
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly twoFactor: TwoFactorService,
     @Inject(DIRECTORY) private readonly directory: Directory,
   ) {}
 
@@ -116,6 +118,14 @@ export class UsersService {
       await this.assertRestentDesAdministrateurs(user, dto);
     }
 
+    // Réinitialisation de la double authentification : le geste d'un
+    // administrateur pour quelqu'un qui a perdu son téléphone. Il ne peut que
+    // la retirer — l'activer suppose de scanner un QR code, ce qu'on ne fait
+    // pas à la place de quelqu'un d'autre.
+    if (dto.twoFactorEnabled === false) {
+      await this.twoFactor.reinitialiser(user.username);
+    }
+
     const row = await this.prisma.user.update({
       where: { id },
       data: {
@@ -168,6 +178,7 @@ export class UsersService {
       lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      twoFactorEnabled: row.twoFactorEnabled && row.twoFactorConfirmedAt !== null,
     };
   }
 }
