@@ -32,7 +32,6 @@ export class MonitoredServicesController {
   }
 
   @Roles('admin')
-
   @Post('applications/:appId/services')
   create(
     @Param('appId') appId: string,
@@ -43,7 +42,6 @@ export class MonitoredServicesController {
   }
 
   @Roles('admin')
-
   @Patch('services/:id')
   update(
     @Param('id') id: string,
@@ -53,7 +51,6 @@ export class MonitoredServicesController {
   }
 
   @Roles('admin')
-
   @Delete('services/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string): Promise<void> {

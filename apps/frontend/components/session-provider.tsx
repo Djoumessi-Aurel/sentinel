@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { CurrentUser } from '@sentinel/shared-types';
+import { peut, type CurrentUser, type RolePermissions } from '@sentinel/shared-types';
 
 import { SESSION_EXPIRED_EVENT, api } from '@/lib/api-client';
 
@@ -28,6 +28,17 @@ export function useSession(): SessionContexte {
   const valeur = useContext(Contexte);
   if (!valeur) throw new Error('useSession doit être utilisé dans SessionProvider');
   return valeur;
+}
+
+/**
+ * Droits de l'utilisateur connecté : `usePeut('resoudreLesAlertes')`.
+ *
+ * On interroge un **droit**, jamais un rôle. Comparer à `role === 'admin'` un
+ * peu partout obligerait à repasser sur chaque écran le jour où un rôle
+ * s'ajoute — ce qui est précisément arrivé avec « superviseur ».
+ */
+export function usePeut(droit: keyof RolePermissions): boolean {
+  return peut(useSession().user.role, droit);
 }
 
 /** Raccourci de lisibilité : `const admin = useIsAdmin()`. */

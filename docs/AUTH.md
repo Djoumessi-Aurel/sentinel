@@ -48,6 +48,16 @@ Un utilisateur n'est **jamais saisi à la main** : il est choisi dans l'annuaire
 3. `POST /api/users` repasse par l'annuaire pour figer le nom affiché et
    l'adresse, et pour **refuser un identifiant qui n'y existe pas**.
 
+### Retirer l'accès : on désactive, on ne supprime pas
+
+Il n'existe pas de suppression d'utilisateur. Pour retirer l'accès à quelqu'un,
+on désactive son compte.
+
+La suppression effacerait la trace de qui a eu accès et quand — précisément ce
+qu'on veut pouvoir consulter après un incident — et rien ne la distinguerait
+d'un clic malheureux. Un compte désactivé conserve son historique, ne peut plus
+se connecter, et se réactive en un clic si la personne revient.
+
 Saisir l'identifiant librement produirait, à la moindre faute de frappe, un
 compte incapable de se connecter et dont personne ne comprendrait pourquoi.
 
@@ -160,16 +170,45 @@ fermée immédiatement.
 
 ## 7. Rôles
 
-| | `viewer` | `admin` |
-|---|---|---|
-| Consulter tableaux de bord, logs, alertes | oui | oui |
-| Créer/modifier applications, serveurs, services, règles, configuration | non | oui |
-| Gérer les utilisateurs | non | oui |
+| | `viewer` | `superviseur` | `admin` |
+|---|---|---|---|
+| Consulter tableaux de bord, logs, alertes | oui | oui | oui |
+| **Voir les chemins des fichiers de logs** | non | oui | oui |
+| **Résoudre une alerte** | non | oui | oui |
+| Créer/modifier applications, serveurs, services, règles, configuration | non | non | oui |
+| Gérer les utilisateurs | non | non | oui |
 
-En pratique : les lectures sont ouvertes à tout utilisateur authentifié, les
-écritures demandent `admin`. Deux gardes distincts, `AuthGuard` puis
-`RolesGuard`, pour pouvoir affiner les rôles plus tard sans toucher à
-l'authentification elle-même.
+- **`viewer`** — consultation seule. C'est le rôle du grand écran de l'open
+  space, visible de tout le plateau et de qui passe.
+- **`superviseur`** — l'exploitant au quotidien : il voit tout et acquitte les
+  alertes, sans pouvoir modifier la configuration.
+- **`admin`** — administre l'application.
+
+Ces droits sont déclarés **une seule fois**, dans `ROLE_PERMISSIONS`
+(`packages/shared-types/src/auth.ts`), et partagés par le backend qui les
+applique et par l'interface qui masque en conséquence. Deux listes séparées
+finiraient par diverger, et c'est toujours l'affichage qui aurait raison à
+l'écran contre le serveur.
+
+Ils ne forment pas une hiérarchie automatique. « admin ⊃ superviseur ⊃ viewer »
+paraît commode jusqu'au jour où un droit ne suit pas l'ordre attendu, et il
+devient alors impossible de l'exprimer : chaque droit est donc déclaré
+explicitement, rôle par rôle.
+
+Deux gardes distincts, `AuthGuard` puis `RolesGuard` : l'un répond « qui es-tu »,
+l'autre « as-tu le droit ».
+
+### Les chemins des fichiers de logs
+
+`/home/mobileapi/API_MOBILE/LOG/*.log` décrit l'arborescence d'une machine de
+production monétique. C'est une indication de reconnaissance : elle oriente qui
+chercherait où frapper, et elle n'a aucune utilité pour quelqu'un qui se
+contente de regarder passer les logs.
+
+Elle n'est pas seulement masquée à l'affichage : **le backend ne l'envoie pas**.
+`Application.logPath` vaut `null` pour un `viewer`. La masquer côté interface
+seulement la laisserait lisible dans la réponse HTTP, donc dans l'onglet réseau
+du navigateur — un masquage qui ne masque rien.
 
 Garde-fous supplémentaires : on ne peut ni modifier son propre rôle, ni se
 désactiver, ni se supprimer soi-même, ni retirer le dernier administrateur actif.

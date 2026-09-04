@@ -113,9 +113,9 @@ export const api = {
     list: () => request<User[]>('/users'),
     searchDirectory: (q: string) => request<DirectoryEntry[]>(`/users/directory${toQuery({ q })}`),
     create: (dto: CreateUserDto) => request<User>('/users', { method: 'POST', body: JSON.stringify(dto) }),
+    // Pas de suppression : on retire l'accès en désactivant (docs/AUTH.md §2).
     update: (id: string, dto: UpdateUserDto) =>
       request<User>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(dto) }),
-    remove: (id: string) => request<void>(`/users/${id}`, { method: 'DELETE' }),
   },
 
   servers: {

@@ -23,8 +23,8 @@ export class ApplicationsController {
   constructor(private readonly applications: ApplicationsService) {}
 
   @Get()
-  list(): Promise<ApplicationSummary[]> {
-    return this.applications.list();
+  list(@CurrentUser() user: RequestUser): Promise<ApplicationSummary[]> {
+    return this.applications.list(user);
   }
 
   /**
@@ -37,8 +37,8 @@ export class ApplicationsController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string): Promise<Application> {
-    return this.applications.getOrThrow(id);
+  get(@Param('id') id: string, @CurrentUser() user: RequestUser): Promise<Application> {
+    return this.applications.getOrThrow(id, user);
   }
 
   /** Le token d'agent renvoyé ici n'est plus jamais consultable ensuite. */
@@ -52,7 +52,6 @@ export class ApplicationsController {
   }
 
   @Roles('admin')
-
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -63,7 +62,6 @@ export class ApplicationsController {
   }
 
   @Roles('admin')
-
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string): Promise<void> {
@@ -87,7 +85,6 @@ export class ApplicationsController {
   }
 
   @Roles('admin')
-
   @Delete('tokens/:tokenId')
   @HttpCode(HttpStatus.NO_CONTENT)
   revokeToken(@Param('tokenId') tokenId: string): Promise<void> {

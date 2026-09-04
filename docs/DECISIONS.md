@@ -256,3 +256,52 @@ un simple commentaire dans un fichier de configuration n'aurait pas suffi.
 
 `npm run auth:test-ldap` permet de valider le réglage réel depuis une machine
 qui voit le domaine, sans démarrer l'application.
+
+## D009 — Un troisième rôle, des droits déclarés, et pas de suppression d'utilisateur
+
+**Date** : 2026-09-04
+**Statut** : appliqué
+**Documents concernés** : `AUTH.md §2 et §7`, `SECURITY.md A01`, `API.md`
+
+### Contexte
+Deux rôles ne suffisaient pas. L'exploitant qui acquitte les alertes au
+quotidien n'a aucune raison d'administrer l'application ; le grand écran de
+l'open space, lui, est visible de tout le plateau et de qui passe.
+
+### Décision
+
+**Trois rôles** : `viewer`, `superviseur`, `admin`. Le superviseur ajoute au
+lecteur deux droits, et deux seulement : résoudre une alerte, et voir les
+chemins des fichiers de logs.
+
+**Les droits sont déclarés, pas déduits.** `ROLE_PERMISSIONS` les énumère rôle
+par rôle, dans `packages/shared-types`, et sert à la fois au backend qui
+applique et à l'interface qui masque. Une hiérarchie implicite paraissait plus
+courte à écrire, mais elle rend inexprimable le premier droit qui ne suit pas
+l'ordre attendu. Les gardes de l'interface portent donc sur un droit
+(`<SiAutorise droit="resoudreLesAlertes">`) et non sur un rôle nommé : un
+quatrième rôle n'obligera pas à repasser sur tous les écrans.
+
+**Les chemins des fichiers de logs ne sont plus envoyés à un `viewer`.**
+`Application.logPath` vaut `null` pour lui. Le contrôle d'accès descend au
+niveau du champ, parce qu'il a le droit de consulter la réponse mais pas ce
+champ-là.
+
+**La suppression d'un utilisateur disparaît.** On retire l'accès en désactivant.
+
+### Conséquences
+Le rôle est une chaîne en base : le troisième n'a demandé aucune migration.
+
+L'absence de suppression a un effet de bord sur les tests : le scénario
+`scripts/qa-auth.mjs` ne peut plus se nettoyer par l'API et le fait directement
+en base, comme n'importe quelle préparation de test. C'est le prix assumé d'une
+API qui ne propose pas un geste destructeur au seul bénéfice de sa propre
+vérification.
+
+Corrige au passage un défaut trouvé en écrivant ces tests : une erreur Prisma
+« enregistrement introuvable » remontait en **500**. Résoudre une alerte
+inexistante présentait ainsi une faute de l'appelant comme une défaillance du
+serveur, et brouillait la supervision, où un 500 doit rester un signal rare. Le
+filtre global traduit désormais ces codes (P2025 → 404, P2002 → 409,
+P2003 → 400) en réécrivant les messages, ceux de Prisma nommant tables et
+colonnes.

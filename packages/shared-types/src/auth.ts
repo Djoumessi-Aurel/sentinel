@@ -9,8 +9,80 @@ import { z } from 'zod';
  * exception, définis par la configuration du serveur et absents de cette liste.
  */
 
-export const USER_ROLES = ['admin', 'viewer'] as const;
+/**
+ * Rôles, du plus large au plus restreint.
+ *
+ * Ils ne forment pas une hiérarchie automatique : chaque droit est déclaré
+ * explicitement dans `ROLE_PERMISSIONS`. Une hiérarchie implicite (« admin ⊃
+ * superviseur ⊃ viewer ») paraît commode jusqu'au jour où un droit ne suit pas
+ * l'ordre attendu, et il devient alors impossible de l'exprimer.
+ */
+export const USER_ROLES = ['admin', 'superviseur', 'viewer'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Libellés affichés. Les rôles restent en anglais dans les données. */
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'administrateur',
+  superviseur: 'superviseur',
+  viewer: 'lecteur',
+};
+
+export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  admin: 'Administre l’application : applications, serveurs, règles, configuration, utilisateurs.',
+  superviseur: 'Consulte tout, résout les alertes et voit les chemins des fichiers de logs.',
+  viewer: 'Consultation seule. Les chemins des fichiers de logs lui sont masqués.',
+};
+
+/**
+ * Droits attachés à chaque rôle — **source unique**, partagée par le backend
+ * (qui applique) et le frontend (qui masque ce qui serait de toute façon
+ * refusé). Deux listes séparées finiraient par diverger, et c'est toujours
+ * l'affichage qui aurait raison à l'écran contre le serveur.
+ */
+export interface RolePermissions {
+  /**
+   * Voir le chemin des fichiers de logs sur les serveurs.
+   *
+   * C'est une information sensible : elle décrit l'arborescence d'une machine de
+   * production monétique et oriente qui chercherait où frapper. Elle n'est pas
+   * seulement masquée à l'affichage, le backend ne l'envoie pas.
+   */
+  voirCheminsDeLogs: boolean;
+  /** Marquer une alerte comme résolue. */
+  resoudreLesAlertes: boolean;
+  /** Créer et modifier applications, serveurs, services, règles et configuration. */
+  administrer: boolean;
+  /** Gérer les utilisateurs de Sentinel. */
+  gererLesUtilisateurs: boolean;
+}
+
+export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
+  admin: {
+    voirCheminsDeLogs: true,
+    resoudreLesAlertes: true,
+    administrer: true,
+    gererLesUtilisateurs: true,
+  },
+  superviseur: {
+    voirCheminsDeLogs: true,
+    resoudreLesAlertes: true,
+    administrer: false,
+    gererLesUtilisateurs: false,
+  },
+  viewer: {
+    voirCheminsDeLogs: false,
+    resoudreLesAlertes: false,
+    administrer: false,
+    gererLesUtilisateurs: false,
+  },
+};
+
+/** `peut(role, 'resoudreLesAlertes')` — se lit à voix haute. */
+export const peut = (role: UserRole, droit: keyof RolePermissions): boolean => ROLE_PERMISSIONS[role][droit];
+
+/** Rôles disposant d'un droit donné, pour alimenter `@Roles(...)`. */
+export const rolesAvec = (droit: keyof RolePermissions): UserRole[] =>
+  USER_ROLES.filter((role) => ROLE_PERMISSIONS[role][droit]);
 
 /** Comptes techniques, à nom fixe, jamais présents dans la table des utilisateurs. */
 export const BUILTIN_ACCOUNTS = {

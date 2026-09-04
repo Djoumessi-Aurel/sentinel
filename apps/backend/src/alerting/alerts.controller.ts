@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
   listAlertsQuerySchema,
+  rolesAvec,
   testChannelSchema,
   type AlertEvent,
   type ListAlertsQuery,
@@ -45,8 +46,12 @@ export class AlertsController {
     return this.alerting.get(id);
   }
 
-  @Roles('admin')
-
+  /**
+   * Résoudre une alerte est le geste d'exploitation quotidien : c'est le droit
+   * qui distingue le superviseur du simple lecteur (docs/AUTH.md §7). La liste
+   * des rôles est dérivée de la table des droits, jamais recopiée.
+   */
+  @Roles(...rolesAvec('resoudreLesAlertes'))
   @Patch(':id/resolve')
   resolve(@Param('id') id: string): Promise<AlertEvent> {
     return this.alerting.resolveAlert(id);

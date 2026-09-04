@@ -41,7 +41,15 @@ export const applicationSchema = z.object({
   name: nameSchema,
   type: z.string().min(1).max(64),
   serverId: z.string(),
-  logPath: z.string().min(1).max(1024),
+  /**
+   * Chemin du fichier de logs sur le serveur.
+   *
+   * **`null` quand l'utilisateur n'a pas le droit de le voir** (rôle `viewer`).
+   * Le backend ne l'envoie alors pas du tout : le masquer à l'affichage
+   * seulement le laisserait lisible dans la réponse HTTP, donc dans l'onglet
+   * réseau du navigateur — ce qui ne masque rien.
+   */
+  logPath: z.string().min(1).max(1024).nullable(),
   status: z.enum(APPLICATION_STATUSES),
   lastLogAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),

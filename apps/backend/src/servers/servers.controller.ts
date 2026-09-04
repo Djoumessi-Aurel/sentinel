@@ -18,7 +18,6 @@ export class ServersController {
   }
 
   @Roles('admin')
-
   @Post()
   create(@Body(zodBody(createServerSchema)) dto: CreateServerDto): Promise<Server> {
     return this.servers.create(dto);

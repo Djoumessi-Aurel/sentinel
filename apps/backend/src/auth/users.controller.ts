@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
   createUserSchema,
   searchDirectorySchema,
@@ -24,6 +24,11 @@ import { UsersService } from './users.service';
  * Réservé au rôle `admin` dans son intégralité, y compris la lecture : la liste
  * des utilisateurs et la recherche dans l'annuaire renseignent sur
  * l'organisation, et n'ont pas à être exposées à un simple lecteur.
+ *
+ * **Aucune suppression.** Retirer l'accès à quelqu'un se fait en le désactivant.
+ * Une suppression effacerait la trace de qui a eu accès et quand — précisément
+ * ce qu'on veut pouvoir consulter après coup — et rien ne la distinguerait d'un
+ * clic malheureux. Un compte désactivé, lui, se réactive.
  */
 @Controller('users')
 @UseGuards(AuthGuard, RolesGuard)
@@ -54,11 +59,5 @@ export class UsersController {
     @CurrentUser() user: RequestUser,
   ): Promise<User> {
     return this.users.update(id, dto, user);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string, @CurrentUser() user: RequestUser): Promise<void> {
-    return this.users.remove(id, user);
   }
 }

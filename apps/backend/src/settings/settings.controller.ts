@@ -29,7 +29,6 @@ export class SettingsController {
   }
 
   @Roles('admin')
-
   @Patch('global')
   updateGlobal(
     @Body(zodBody(updateGlobalConfigSchema)) dto: UpdateGlobalConfigDto,
@@ -44,7 +43,6 @@ export class SettingsController {
   }
 
   @Roles('admin')
-
   @Patch('applications/:appId')
   updateAppConfig(
     @Param('appId') appId: string,

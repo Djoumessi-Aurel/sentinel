@@ -21,9 +21,27 @@ outil d'administration.
 | Un token d'agent n'autorise que l'`applicationId` auquel il est rattaché : un agent compromis ne peut pas injecter dans une autre appli | `AgentTokenGuard` |
 | Vérification systématique de l'appartenance d'une ressource imbriquée (`/services/:id`, `/rules/:id`) avant lecture ou écriture | services backend |
 | Le frontend ne fait jamais foi : toute règle d'accès est revalidée côté serveur | — |
+| Trois rôles (`viewer`, `superviseur`, `admin`), droits déclarés en un seul endroit et partagés backend/frontend | `ROLE_PERMISSIONS`, `docs/AUTH.md §7` |
+| Le contrôle d'accès descend jusqu'au **champ** : les chemins des fichiers de logs ne sont pas envoyés à un `viewer` | `ApplicationsService.toDto` |
 
 **Interdit** : exposer un identifiant technique dans une route sans vérifier
 que l'appelant y a droit (référence directe non sécurisée).
+
+### Autoriser au niveau du champ, pas seulement de la route
+
+Un contrôle d'accès qui s'arrête à la route laisse passer des données que
+l'appelant n'a pas à voir dans une réponse à laquelle il a pourtant droit.
+
+Le cas concret ici : les chemins des fichiers de logs. Un `viewer` a le droit de
+consulter la liste des applications — c'est même l'écran principal — mais pas de
+savoir que les logs de telle application vivent dans
+`/home/mobileapi/API_MOBILE/LOG/`. Cette information décrit l'arborescence d'une
+machine de production monétique et oriente qui chercherait où frapper.
+
+Le champ est donc retiré **de la réponse**, pas de l'affichage. Masquer côté
+interface aurait laissé la valeur lisible dans l'onglet réseau du navigateur :
+un masquage qui ne masque rien, et qui donne en prime l'illusion d'être
+protégé.
 
 ## A02 — Défaillances cryptographiques
 

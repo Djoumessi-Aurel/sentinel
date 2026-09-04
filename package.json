@@ -21,7 +21,7 @@
     "db:migrate": "npm run db:migrate --workspace @sentinel/backend",
     "db:seed": "npm run db:seed --workspace @sentinel/backend",
     "audit:security": "node scripts/audit-security.mjs",
-    "qa:auth": "node scripts/qa-auth.mjs",
+    "qa:auth": "node scripts/with-env.mjs node scripts/qa-auth.mjs",
     "audit:all": "npm audit",
     "dev:mysql": "node scripts/dev-mysql.mjs start",
     "dev:mysql:stop": "node scripts/dev-mysql.mjs stop",

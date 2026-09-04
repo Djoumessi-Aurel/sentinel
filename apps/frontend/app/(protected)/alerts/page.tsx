@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AlertEvent, ApplicationSummary } from '@sentinel/shared-types';
 
 import { ApiError, api } from '@/lib/api-client';
-import { AdminOnly } from '@/components/admin-only';
+import { SiAutorise } from '@/components/admin-only';
 
 const PAGE_SIZE = 50;
 
@@ -161,7 +161,7 @@ export default function AlertsPage() {
               </div>
 
               {!alert.resolvedAt && (
-                <AdminOnly>
+                <SiAutorise droit="resoudreLesAlertes">
                   <button
                     type="button"
                     onClick={() => void api.alerts.resolve(alert.id).then(load)}
@@ -169,7 +169,7 @@ export default function AlertsPage() {
                   >
                     Résoudre
                   </button>
-                </AdminOnly>
+                </SiAutorise>
               )}
             </div>
           </div>

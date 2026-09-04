@@ -16,7 +16,7 @@ import { AppStatusBadge, ServiceStateDot } from '@/components/app-status-badge';
 import { LogViewer } from '@/components/log-viewer';
 import { ApiError, api } from '@/lib/api-client';
 import { useApplicationRealtime } from '@/lib/socket-client';
-import { AdminOnly } from '@/components/admin-only';
+import { SiAutorise } from '@/components/admin-only';
 
 /** Nombre de lignes récentes chargées au montage, avant la prise de relais du flux. */
 const INITIAL_LINES = 200;
@@ -119,7 +119,9 @@ export default function LivePage() {
             <h1 className="text-xl font-semibold tracking-tight">{application.name}</h1>
             <AppStatusBadge health={health} />
           </div>
-          <p className="mt-1 font-mono text-xs text-slate-500">{application.logPath}</p>
+          {application.logPath !== null && (
+            <p className="mt-1 font-mono text-xs text-slate-500">{application.logPath}</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-sm">
@@ -165,7 +167,7 @@ export default function LivePage() {
                 {alert.severity === 'critical' ? 'Critique' : 'Avertissement'}
               </span>
               <span className="min-w-0 flex-1">{alert.message}</span>
-              <AdminOnly>
+              <SiAutorise droit="resoudreLesAlertes">
                 <button
                   type="button"
                   onClick={() => void api.alerts.resolve(alert.id).then(load)}
@@ -173,7 +175,7 @@ export default function LivePage() {
                 >
                   Résoudre
                 </button>
-              </AdminOnly>
+              </SiAutorise>
             </div>
           ))}
         </div>

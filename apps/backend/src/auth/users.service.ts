@@ -127,15 +127,6 @@ export class UsersService {
     return this.toDto(row);
   }
 
-  async remove(id: string, auteur: RequestUser): Promise<void> {
-    const user = await this.findOrThrow(id);
-    if (user.username === auteur.username) {
-      throw new ForbiddenException('Vous ne pouvez pas supprimer votre propre compte.');
-    }
-    await this.assertRestentDesAdministrateurs(user, { enabled: false });
-    await this.prisma.user.delete({ where: { id } });
-  }
-
   /**
    * Empêche de retirer le dernier administrateur actif.
    *

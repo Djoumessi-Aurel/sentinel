@@ -7,6 +7,7 @@ import type { ApplicationSummary, CreatedApplication, Server } from '@sentinel/s
 import { AppStatusBadge } from '@/components/app-status-badge';
 import { ApiError, api } from '@/lib/api-client';
 import { AdminOnly } from '@/components/admin-only';
+import { usePeut } from '@/components/session-provider';
 
 /**
  * Déclaration et gestion des applications supervisées.
@@ -41,6 +42,9 @@ const typeInitial = (types: string[]): string =>
   types.includes(TYPE_PAR_DEFAUT) ? TYPE_PAR_DEFAUT : (types[0] ?? TYPE_PAR_DEFAUT);
 
 export default function ApplicationsPage() {
+  // Colonne retirée plutôt que vidée : une colonne « Fichier suivi »
+  // systématiquement vide laisserait croire à une donnée manquante.
+  const voitLesChemins = usePeut('voirCheminsDeLogs');
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
   const [types, setTypes] = useState<string[]>([]);
@@ -132,7 +136,7 @@ export default function ApplicationsPage() {
               <th className="px-4 py-2 font-medium">Application</th>
               <th className="px-4 py-2 font-medium">Serveur</th>
               <th className="px-4 py-2 font-medium">Type</th>
-              <th className="px-4 py-2 font-medium">Fichier suivi</th>
+              {voitLesChemins && <th className="px-4 py-2 font-medium">Fichier suivi</th>}
               <th className="px-4 py-2 font-medium">État</th>
               <th className="px-4 py-2" />
             </tr>
@@ -140,7 +144,7 @@ export default function ApplicationsPage() {
           <tbody className="divide-y divide-slate-200">
             {applications.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={voitLesChemins ? 6 : 5} className="px-4 py-8 text-center text-slate-500">
                   Aucune application déclarée.
                 </td>
               </tr>
@@ -154,9 +158,14 @@ export default function ApplicationsPage() {
                 </td>
                 <td className="px-4 py-2 text-slate-500">{app.serverName}</td>
                 <td className="px-4 py-2 text-slate-500">{app.type}</td>
-                <td className="max-w-[280px] truncate px-4 py-2 font-mono text-xs text-slate-500" title={app.logPath}>
-                  {app.logPath}
-                </td>
+                {voitLesChemins && (
+                  <td
+                    className="max-w-[280px] truncate px-4 py-2 font-mono text-xs text-slate-500"
+                    title={app.logPath ?? undefined}
+                  >
+                    {app.logPath}
+                  </td>
+                )}
                 <td className="px-4 py-2">
                   <AppStatusBadge health={app.health} size="sm" />
                 </td>
@@ -384,7 +393,10 @@ function TokenPanel({ created, onClose }: { created: CreatedApplication; onClose
     application.id,
     BACKEND_URL,
     agentToken,
-    `"${application.logPath}"`,
+    // Le chemin est toujours présent ici : ce panneau suit une création, donc
+    // un geste d'administration. Le repli rend l'absence visible plutôt que de
+    // produire une commande silencieusement incomplète.
+    `"${application.logPath ?? '<chemin du fichier de logs>'}"`,
   ].join(' ');
 
   const copier = async (valeur: string, quoi: 'token' | 'commande') => {

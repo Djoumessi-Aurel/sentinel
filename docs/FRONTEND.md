@@ -33,7 +33,7 @@ apps/frontend/
 ├── components/
 │   ├── session-provider.tsx          # session côté interface, redirection vers /login
 │   ├── app-header.tsx                # navigation, utilisateur connecté, déconnexion
-│   ├── admin-only.tsx                # masque ce qu'un lecteur ne peut pas faire
+│   ├── admin-only.tsx                # masque ce que l'utilisateur n'a pas le droit de faire
 │   ├── log-viewer/                   # composant virtualisé (react-window) pour l'affichage des logs
 │   ├── color-picker/
 │   └── app-status-badge/
@@ -51,10 +51,16 @@ page demandée (`?suite=`), pour ne pas perdre le lien qu'on venait d'ouvrir.
 
 **Rien de tout cela n'est un contrôle de sécurité.** Le backend vérifie la
 session et le rôle à chaque requête, et lui seul fait foi. L'interface se
-contente de ne pas afficher un écran vide, et de masquer — via `AdminOnly` et
-`AdminPage` — les actions qu'un lecteur ne pourrait de toute façon pas
+contente de ne pas afficher un écran vide, et de masquer — via `SiAutorise` et
+`PageSoumiseA` — les actions que l'utilisateur ne pourrait de toute façon pas
 exécuter : proposer un bouton dont la seule issue est une erreur n'aide
 personne.
+
+Ces gardes portent sur un **droit**, jamais sur un rôle nommé :
+`<SiAutorise droit="resoudreLesAlertes">`, `usePeut('voirCheminsDeLogs')`. Des
+comparaisons `role === 'admin'` dispersées obligeraient à repasser sur chaque
+écran à chaque nouveau rôle — ce qui est arrivé à l'arrivée du superviseur, et
+n'arrivera plus.
 
 Une session de douze heures expire volontiers pendant qu'un écran reste ouvert.
 Le client HTTP émet donc un événement sur `window` dès qu'une requête revient en

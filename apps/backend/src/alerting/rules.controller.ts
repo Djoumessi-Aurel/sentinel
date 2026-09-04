@@ -32,7 +32,6 @@ export class RulesController {
   }
 
   @Roles('admin')
-
   @Post('applications/:appId/rules')
   create(
     @Param('appId') appId: string,
@@ -43,7 +42,6 @@ export class RulesController {
   }
 
   @Roles('admin')
-
   @Patch('rules/:id')
   update(
     @Param('id') id: string,
@@ -54,7 +52,6 @@ export class RulesController {
   }
 
   @Roles('admin')
-
   @Delete('rules/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string): Promise<void> {

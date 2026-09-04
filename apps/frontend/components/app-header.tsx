@@ -4,36 +4,46 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { api } from '@/lib/api-client';
-import { useSession } from '@/components/session-provider';
+import { ROLE_LABELS } from '@sentinel/shared-types';
 
-/**
- * Barre de navigation.
- *
- * Les entrées réservées aux administrateurs sont masquées pour les lecteurs.
- * C'est du confort, pas une protection : le backend refuse ces routes de toute
- * façon (docs/AUTH.md §7). Proposer un lien qui ne mène qu'à une erreur serait
- * simplement désagréable.
- */
+import { api } from '@/lib/api-client';
+import { usePeut, useSession } from '@/components/session-provider';
+
 const NAV_COMMUNE = [
   { href: '/dashboard', label: 'Tableau de bord' },
   { href: '/applications', label: 'Applications' },
   { href: '/alerts', label: 'Alertes' },
 ];
 
-const NAV_ADMIN = [
+const NAV_ADMINISTRATION = [
   { href: '/config/global', label: 'Configuration' },
   { href: '/config/generalize', label: 'Généraliser' },
-  { href: '/users', label: 'Utilisateurs' },
 ];
 
+const NAV_UTILISATEURS = [{ href: '/users', label: 'Utilisateurs' }];
+
+/**
+ * Barre de navigation.
+ *
+ * Les entrées qu'un utilisateur n'a pas le droit d'ouvrir lui sont masquées.
+ * C'est du confort, pas une protection : le backend refuse ces routes de toute
+ * façon (docs/AUTH.md §7). Proposer un lien qui ne mène qu'à une erreur serait
+ * simplement désagréable.
+ */
 export function AppHeader() {
   const { user } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
 
-  const entrees = user.role === 'admin' ? [...NAV_COMMUNE, ...NAV_ADMIN] : NAV_COMMUNE;
+  // Chaque bloc de navigation suit le droit qui commande l'écran auquel il mène,
+  // et non un rôle nommé : les deux resteront cohérents même si les droits
+  // d'un rôle changent.
+  const entrees = [
+    ...NAV_COMMUNE,
+    ...(usePeut('administrer') ? NAV_ADMINISTRATION : []),
+    ...(usePeut('gererLesUtilisateurs') ? NAV_UTILISATEURS : []),
+  ];
 
   const seDeconnecter = async () => {
     setDeconnexionEnCours(true);
@@ -79,7 +89,7 @@ export function AppHeader() {
           <span className="text-slate-700">
             {user.displayName}
             <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-              {user.role === 'admin' ? 'administrateur' : 'lecteur'}
+              {ROLE_LABELS[user.role]}
             </span>
           </span>
           <button

@@ -8,9 +8,13 @@ disponibilité, l'état de l'authentification, la connexion et la déconnexion. 
 jamais créer de route sans garde.
 
 Les lectures sont ouvertes à tout utilisateur authentifié ; les écritures
-demandent le rôle `admin` (`@Roles('admin')`, voir `AUTH.md §7`). Les routes
-d'ingestion font exception : elles s'authentifient par token d'agent, pas par
+demandent le rôle `admin`, à une exception près : **résoudre une alerte** est
+également ouvert au `superviseur` (voir `AUTH.md §7`). Les routes d'ingestion
+font exception à tout cela : elles s'authentifient par token d'agent, pas par
 session.
+
+Certaines réponses dépendent du rôle. `Application.logPath` vaut `null` pour un
+`viewer` : la donnée n'est pas envoyée, pas seulement masquée à l'affichage.
 
 ## 1. Ingestion (machine-à-machine, agents)
 
@@ -81,8 +85,10 @@ GET    /api/users                        admin — liste des utilisateurs décla
 GET    /api/users/directory?q=...        admin — recherche dans l'annuaire (2 caractères min)
 POST   /api/users                        admin — { username, role } ; username doit exister dans l'annuaire
 PATCH  /api/users/:id                    admin — { role?, enabled? }
-DELETE /api/users/:id                    admin
 ```
+
+**Il n'y a pas de suppression d'utilisateur** : on retire l'accès en passant
+`enabled: false`. Voir `AUTH.md §2`.
 
 La session voyage dans un cookie `sentinel_session` **HttpOnly**, jamais dans
 un en-tête que le JavaScript de la page pourrait lire. Les appels du frontend

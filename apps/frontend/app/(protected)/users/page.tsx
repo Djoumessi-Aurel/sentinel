@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { DirectoryEntry, User, UserRole } from '@sentinel/shared-types';
+import { ROLE_DESCRIPTIONS, ROLE_LABELS, USER_ROLES, type DirectoryEntry, type User, type UserRole } from '@sentinel/shared-types';
 
 import { api } from '@/lib/api-client';
-import { useSession } from '@/components/session-provider';
+import { usePeut, useSession } from '@/components/session-provider';
 
 const dateCourte = (iso: string | null): string =>
   iso === null ? 'jamais' : new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
@@ -19,6 +19,7 @@ const dateCourte = (iso: string | null): string =>
  */
 export default function PageUtilisateurs() {
   const { user: connecte } = useSession();
+  const gestionnaire = usePeut('gererLesUtilisateurs');
   const [utilisateurs, setUtilisateurs] = useState<User[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -33,8 +34,8 @@ export default function PageUtilisateurs() {
   }, []);
 
   useEffect(() => {
-    if (connecte.role === 'admin') void charger();
-  }, [charger, connecte.role]);
+    if (gestionnaire) void charger();
+  }, [charger, gestionnaire]);
 
   const agir = async (action: () => Promise<unknown>, succes: string) => {
     setErreur(null);
@@ -48,7 +49,7 @@ export default function PageUtilisateurs() {
     }
   };
 
-  if (connecte.role !== 'admin') {
+  if (!gestionnaire) {
     return (
       <div className="rounded-lg border border-slate-200 bg-surface-raised p-4 text-sm text-slate-600">
         Cet écran est réservé aux administrateurs.
@@ -131,8 +132,11 @@ export default function PageUtilisateurs() {
                           title={soiMeme ? 'On ne modifie pas son propre rôle.' : undefined}
                           className="rounded border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-50 disabled:text-slate-400"
                         >
-                          <option value="viewer">lecteur</option>
-                          <option value="admin">administrateur</option>
+                          {USER_ROLES.map((r) => (
+                            <option key={r} value={r} title={ROLE_DESCRIPTIONS[r]}>
+                              {ROLE_LABELS[r]}
+                            </option>
+                          ))}
                         </select>
                       </td>
                       <td className="px-4 py-2.5 text-slate-600">{dateCourte(u.lastLoginAt)}</td>
@@ -158,17 +162,6 @@ export default function PageUtilisateurs() {
                           >
                             {u.enabled ? 'Désactiver' : 'Réactiver'}
                           </button>
-                          <button
-                            type="button"
-                            disabled={soiMeme}
-                            onClick={() => {
-                              if (!confirm(`Retirer définitivement ${u.displayName} de Sentinel ?`)) return;
-                              void agir(() => api.users.remove(u.id), `${u.username} a été retiré.`);
-                            }}
-                            className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 transition hover:bg-red-50 disabled:opacity-40"
-                          >
-                            Retirer
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -180,9 +173,10 @@ export default function PageUtilisateurs() {
         )}
 
         <p className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
-          Désactiver conserve l’historique et coupe l’accès ; retirer efface la déclaration. Dans les deux cas le compte
-          Active Directory n’est pas touché. On ne peut ni modifier son propre rôle, ni se désactiver, ni retirer le
-          dernier administrateur actif.
+          Pour retirer l’accès à quelqu’un, on le désactive : l’historique reste consultable, et le compte se réactive
+          au besoin. Il n’y a pas de suppression — elle effacerait la trace de qui a eu accès et quand, et rien ne la
+          distinguerait d’un clic malheureux. Le compte Active Directory n’est jamais touché. On ne peut ni modifier son
+          propre rôle, ni se désactiver, ni retirer le dernier administrateur actif.
         </p>
       </section>
 
@@ -270,9 +264,13 @@ function AjoutDepuisAnnuaire({ onAjout }: { onAjout: (username: string, role: Us
             onChange={(e) => setRole(e.target.value as UserRole)}
             className="rounded border border-slate-300 px-2 py-2 text-sm"
           >
-            <option value="viewer">lecteur</option>
-            <option value="admin">administrateur</option>
+            {USER_ROLES.map((r) => (
+              <option key={r} value={r} title={ROLE_DESCRIPTIONS[r]}>
+                {ROLE_LABELS[r]}
+              </option>
+            ))}
           </select>
+          <p className="mt-1 max-w-xs text-xs text-slate-500">{ROLE_DESCRIPTIONS[role]}</p>
         </div>
       </div>
 
@@ -306,7 +304,7 @@ function AjoutDepuisAnnuaire({ onAjout }: { onAjout: (username: string, role: Us
                   }}
                   className="rounded bg-sky-700 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-sky-800"
                 >
-                  Ajouter comme {role === 'admin' ? 'administrateur' : 'lecteur'}
+                  Ajouter comme {ROLE_LABELS[role]}
                 </button>
               )}
             </li>

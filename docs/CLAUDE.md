@@ -159,7 +159,9 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
    déclaré utilisateur par un administrateur (voir `docs/AUTH.md`)
 2. Deux comptes techniques hors annuaire : `sentineluser` (écran d'open space)
    et `sentineladmin` (super administrateur)
-3. Rôles `admin` / `viewer` : lecture ouverte à tous, écriture réservée
+3. Trois rôles — `viewer`, `superviseur`, `admin` — aux droits déclarés en un
+   seul endroit (`ROLE_PERMISSIONS`). Le superviseur résout les alertes et voit
+   les chemins des fichiers de logs, que le lecteur ne reçoit pas
 4. 2FA TOTP — **reste à faire**, conception dans `docs/AUTH.md §10`
 
 La préparation faite dès la Phase 1 a tenu sa promesse : seul le contenu

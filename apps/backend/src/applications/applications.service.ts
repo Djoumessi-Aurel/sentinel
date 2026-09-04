@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { parserRegistry } from '@sentinel/log-parsers';
+import { peut } from '@sentinel/shared-types';
 import type {
   Application,
   ApplicationHealth,
@@ -30,7 +31,7 @@ export class ApplicationsService {
     return parserRegistry.listTypes();
   }
 
-  async list(): Promise<ApplicationSummary[]> {
+  async list(demandeur: RequestUser): Promise<ApplicationSummary[]> {
     const rows = await this.prisma.application.findMany({
       orderBy: { name: 'asc' },
       include: {
@@ -47,7 +48,7 @@ export class ApplicationsService {
       ).length;
 
       return {
-        ...this.toDto(row),
+        ...this.toDto(row, demandeur),
         serverName: row.server.name,
         health: this.computeHealth(
           activeAlerts.map((alert) => alert.severity),
@@ -72,8 +73,8 @@ export class ApplicationsService {
     return 'ok';
   }
 
-  async getOrThrow(id: string): Promise<Application> {
-    return this.toDto(await this.findRowOrThrow(id));
+  async getOrThrow(id: string, demandeur: RequestUser): Promise<Application> {
+    return this.toDto(await this.findRowOrThrow(id), demandeur);
   }
 
   async findRowOrThrow(id: string): Promise<ApplicationRow> {
@@ -129,7 +130,7 @@ export class ApplicationsService {
       return { application, agentToken };
     });
 
-    return { application: this.toDto(created.application), agentToken: created.agentToken };
+    return { application: this.toDto(created.application, user), agentToken: created.agentToken };
   }
 
   async update(id: string, dto: UpdateApplicationDto, user: RequestUser): Promise<Application> {
@@ -138,7 +139,7 @@ export class ApplicationsService {
       where: { id },
       data: { ...dto, updatedBy: user.id },
     });
-    return this.toDto(row);
+    return this.toDto(row, user);
   }
 
   async remove(id: string): Promise<void> {
@@ -196,13 +197,21 @@ export class ApplicationsService {
     });
   }
 
-  private toDto(row: ApplicationRow): Application {
+  /**
+   * Conversion vers le contrat public.
+   *
+   * Le chemin du fichier de logs n'est pas seulement masqué à l'affichage : il
+   * n'est **pas envoyé** à qui n'a pas le droit de le voir. Le masquer côté
+   * interface le laisserait lisible dans la réponse HTTP, donc dans l'onglet
+   * réseau du navigateur — un masquage qui ne masque rien (docs/AUTH.md §7).
+   */
+  private toDto(row: ApplicationRow, demandeur: RequestUser): Application {
     return {
       id: row.id,
       name: row.name,
       type: row.type,
       serverId: row.serverId,
-      logPath: row.logPath,
+      logPath: peut(demandeur.role, 'voirCheminsDeLogs') ? row.logPath : null,
       status: row.status as Application['status'],
       lastLogAt: row.lastLogAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
