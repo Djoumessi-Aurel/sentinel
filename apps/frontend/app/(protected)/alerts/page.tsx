@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AlertEvent, ApplicationSummary } from '@sentinel/shared-types';
 
 import { ApiError, api } from '@/lib/api-client';
+import { AdminOnly } from '@/components/admin-only';
 
 const PAGE_SIZE = 50;
 
@@ -160,13 +161,15 @@ export default function AlertsPage() {
               </div>
 
               {!alert.resolvedAt && (
-                <button
-                  type="button"
-                  onClick={() => void api.alerts.resolve(alert.id).then(load)}
-                  className="shrink-0 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-                >
-                  Résoudre
-                </button>
+                <AdminOnly>
+                  <button
+                    type="button"
+                    onClick={() => void api.alerts.resolve(alert.id).then(load)}
+                    className="shrink-0 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                  >
+                    Résoudre
+                  </button>
+                </AdminOnly>
               )}
             </div>
           </div>

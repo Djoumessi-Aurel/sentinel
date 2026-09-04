@@ -31,6 +31,9 @@ function getSocket(): Socket {
   if (!sharedSocket) {
     sharedSocket = io(`${WS_URL}${REALTIME_NAMESPACE}`, {
       transports: ['websocket'],
+      // La passerelle ferme les connexions sans session valide : le cookie doit
+      // accompagner la poignée de main (docs/AUTH.md §6).
+      withCredentials: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10_000,

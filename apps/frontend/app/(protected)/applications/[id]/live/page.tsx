@@ -16,6 +16,7 @@ import { AppStatusBadge, ServiceStateDot } from '@/components/app-status-badge';
 import { LogViewer } from '@/components/log-viewer';
 import { ApiError, api } from '@/lib/api-client';
 import { useApplicationRealtime } from '@/lib/socket-client';
+import { AdminOnly } from '@/components/admin-only';
 
 /** Nombre de lignes récentes chargées au montage, avant la prise de relais du flux. */
 const INITIAL_LINES = 200;
@@ -164,13 +165,15 @@ export default function LivePage() {
                 {alert.severity === 'critical' ? 'Critique' : 'Avertissement'}
               </span>
               <span className="min-w-0 flex-1">{alert.message}</span>
-              <button
-                type="button"
-                onClick={() => void api.alerts.resolve(alert.id).then(load)}
-                className="shrink-0 rounded border border-current bg-white/70 px-2.5 py-1 text-xs font-medium hover:bg-white"
-              >
-                Résoudre
-              </button>
+              <AdminOnly>
+                <button
+                  type="button"
+                  onClick={() => void api.alerts.resolve(alert.id).then(load)}
+                  className="shrink-0 rounded border border-current bg-white/70 px-2.5 py-1 text-xs font-medium hover:bg-white"
+                >
+                  Résoudre
+                </button>
+              </AdminOnly>
             </div>
           ))}
         </div>

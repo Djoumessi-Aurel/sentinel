@@ -1,5 +1,6 @@
 import type {
   AlertEvent,
+  AuthStatus,
   AnalyzerResult,
   AnalyzerRule,
   AppConfig,
@@ -7,11 +8,15 @@ import type {
   ApplicationServicesStatus,
   ApplicationSummary,
   CreateApplicationDto,
+  CreateUserDto,
   CreateMonitoredServiceDto,
   CreateServerDto,
   CreatedApplication,
+  CurrentUser,
+  DirectoryEntry,
   GlobalConfig,
   ListAlertsQuery,
+  LoginDto,
   MonitoredService,
   Paginated,
   SearchLogsQuery,
@@ -19,6 +24,8 @@ import type {
   StoredLogEntry,
   UpdateAppConfigDto,
   UpdateGlobalConfigDto,
+  UpdateUserDto,
+  User,
 } from '@sentinel/shared-types';
 
 /**
@@ -28,6 +35,9 @@ import type {
  * (docs/API.md §9).
  */
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '') + '/api';
+
+/** Émis sur `window` dès qu'une requête revient en 401. */
+export const SESSION_EXPIRED_EVENT = 'sentinel:session-expiree';
 
 export class ApiError extends Error {
   constructor(
@@ -46,6 +56,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      // Le cookie de session est déposé par le backend, sur une autre origine
+      // que l'interface : sans cela, le navigateur ne le renverrait jamais et
+      // toutes les requêtes reviendraient en 401 (docs/AUTH.md §6).
+      credentials: 'include',
       cache: 'no-store',
     });
   } catch {
@@ -60,6 +74,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const payload: unknown = text === '' ? null : JSON.parse(text);
 
   if (!response.ok) {
+    // Une session de douze heures expire volontiers pendant qu'un écran reste
+    // ouvert. Sans ce signal, l'utilisateur verrait les données se figer sans
+    // comprendre pourquoi ; le layout protégé l'écoute et renvoie vers la page
+    // de connexion.
+    if (response.status === 401 && typeof window !== 'undefined' && path !== '/auth/login') {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    }
+
     const body = payload as { message?: string | string[]; errors?: Array<{ path: string; message: string }> } | null;
     const message = Array.isArray(body?.message) ? body.message.join(', ') : (body?.message ?? 'Erreur inattendue');
     throw new ApiError(response.status, message, body?.errors);
@@ -79,6 +101,22 @@ const toQuery = (params: Record<string, string | number | undefined>): string =>
 
 export const api = {
   health: () => request<{ status: string; database: boolean; logStore: string }>('/health'),
+
+  auth: {
+    status: () => request<AuthStatus>('/auth/status'),
+    login: (dto: LoginDto) => request<CurrentUser>('/auth/login', { method: 'POST', body: JSON.stringify(dto) }),
+    logout: () => request<void>('/auth/logout', { method: 'POST' }),
+    me: () => request<CurrentUser>('/auth/me'),
+  },
+
+  users: {
+    list: () => request<User[]>('/users'),
+    searchDirectory: (q: string) => request<DirectoryEntry[]>(`/users/directory${toQuery({ q })}`),
+    create: (dto: CreateUserDto) => request<User>('/users', { method: 'POST', body: JSON.stringify(dto) }),
+    update: (id: string, dto: UpdateUserDto) =>
+      request<User>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+    remove: (id: string) => request<void>(`/users/${id}`, { method: 'DELETE' }),
+  },
 
   servers: {
     list: () => request<Server[]>('/servers'),

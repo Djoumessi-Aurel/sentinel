@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { KNOWN_LOG_LEVELS, type GlobalConfig } from '@sentinel/shared-types';
 
 import { ApiError, api } from '@/lib/api-client';
+import { AdminPage } from '@/components/admin-only';
 
 /**
  * Configuration globale (docs/CONFIG_MANAGEMENT.md §4).
@@ -14,7 +15,7 @@ import { ApiError, api } from '@/lib/api-client';
  * « Généraliser ». Sans ce rappel, l'utilisateur croirait avoir modifié tout le
  * parc et découvrirait le contraire lors d'un incident.
  */
-export default function GlobalConfigPage() {
+function GlobalConfigPage() {
   const [config, setConfig] = useState<GlobalConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -326,4 +327,12 @@ function contrastRatio(foreground: string, background: string): number {
   const lighter = Math.max(first, second);
   const darker = Math.min(first, second);
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+export default function Page() {
+  return (
+    <AdminPage>
+      <GlobalConfigPage />
+    </AdminPage>
+  );
 }

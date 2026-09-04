@@ -197,3 +197,62 @@ ESLint propre, si bien que le script était devenu un échec pur et simple. Il a
 été retiré plutôt que laissé cassé : la vérification statique du dépôt repose
 sur TypeScript (`npm run typecheck`, en mode strict sur tous les workspaces).
 Ajouter ESLint reste possible, ce serait une décision à part entière.
+
+## D007 — Authentification adossée à l'Active Directory, sans mot de passe stocké
+
+**Date** : 2026-09-04
+**Statut** : appliqué
+**Documents concernés** : `AUTH.md`, `SECURITY.md`, `API.md`, `CLAUDE.md §7`
+
+### Contexte
+`AUTH.md` décrivait un modèle autonome : table `User` avec `passwordHash`,
+connexion par e-mail, 2FA TOTP. L'entreprise dispose d'un Active Directory qui
+fait déjà autorité sur les comptes et les mots de passe.
+
+### Décision
+Sentinel ne gère aucun mot de passe d'utilisateur. Il vérifie d'abord que
+l'identifiant est un utilisateur **déclaré et actif**, puis délègue la
+vérification du mot de passe à l'annuaire par un `bind` LDAP.
+
+L'ordre des deux étapes n'est pas indifférent. Vérifier l'annuaire d'abord
+transformerait toute campagne de devinettes contre Sentinel en tentatives de
+connexion sur les comptes du domaine, avec le risque de les verrouiller — un
+déni de service sur les comptes de l'entreprise, déclenché depuis une
+application de supervision.
+
+Un utilisateur n'est jamais saisi à la main : il est choisi dans l'annuaire,
+ce qui garantit que l'identifiant enregistré correspond à un compte existant.
+
+### Conséquences
+Un départ traité dans l'AD coupe l'accès sans intervention dans Sentinel. En
+contrepartie, l'application dépend de la disponibilité de l'annuaire : les deux
+comptes techniques, qui n'en dépendent pas, gardent l'accès quand il tombe.
+
+La 2FA reste à faire ; sa conception est conservée dans `AUTH.md §10`.
+
+## D008 — Un mode de développement qui ne vérifie pas les mots de passe
+
+**Date** : 2026-09-04
+**Statut** : appliqué
+**Documents concernés** : `AUTH.md §4`
+
+### Contexte
+L'Active Directory n'est pas joignable depuis un poste de développement. Sans
+solution, aucune fonctionnalité située derrière l'authentification ne serait
+développable ni testable hors du réseau de l'entreprise.
+
+### Décision
+`AUTH_MODE=dev` remplace l'annuaire par un annuaire fictif de huit personnes.
+La recherche et la vérification d'existence fonctionnent ; **le mot de passe
+n'est pas vérifié**. La première étape de l'authentification — être un
+utilisateur déclaré et actif — reste, elle, pleinement appliquée.
+
+### Conséquences
+C'est un mode dangereux, et il est traité comme tel : le schéma de configuration
+**refuse `AUTH_MODE=dev` quand `NODE_ENV=production`**, le backend l'annonce en
+garde au démarrage, et la page de connexion l'affiche en rouge. Une bascule par
+inadvertance ouvrirait l'application à quiconque connaît un identifiant déclaré ;
+un simple commentaire dans un fichier de configuration n'aurait pas suffi.
+
+`npm run auth:test-ldap` permet de valider le réglage réel depuis une machine
+qui voit le domaine, sans démarrer l'application.

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { ApplicationSummary, GlobalConfig } from '@sentinel/shared-types';
 
 import { ApiError, api } from '@/lib/api-client';
+import { AdminPage } from '@/components/admin-only';
 
 /**
  * Généralisation de la configuration globale (docs/CONFIG_MANAGEMENT.md §3).
@@ -15,7 +16,7 @@ import { ApiError, api } from '@/lib/api-client';
  *  - la liste indique quelles applications ont dérivé de la config globale, pour
  *    qu'on sache ce qu'on écrase avant de le faire.
  */
-export default function GeneralizePage() {
+function GeneralizePage() {
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig | null>(null);
   const [diverged, setDiverged] = useState<Set<string>>(new Set());
@@ -156,5 +157,13 @@ export default function GeneralizePage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <AdminPage>
+      <GeneralizePage />
+    </AdminPage>
   );
 }

@@ -8,7 +8,9 @@ temps réel.
 ```
 apps/frontend/
 ├── app/
-│   ├── (protected)/                 # layout unique, point d'ancrage futur pour l'auth (voir AUTH.md)
+│   ├── login/
+│   │   └── page.tsx                  # seule page hors du layout protégé (voir AUTH.md)
+│   ├── (protected)/                 # layout unique : contrôle de session (voir AUTH.md)
 │   │   ├── layout.tsx
 │   │   ├── dashboard/                # vue d'ensemble : statut de toutes les applis
 │   │   │   └── page.tsx
@@ -23,10 +25,15 @@ apps/frontend/
 │   │   ├── config/
 │   │   │   ├── global/page.tsx       # config globale (couleurs, canaux/analyseurs par défaut)
 │   │   │   └── generalize/page.tsx   # écran du bouton "généraliser" (sélection des applis)
+│   │   ├── users/
+│   │   │   └── page.tsx              # gestion des utilisateurs (administrateurs)
 │   │   └── alerts/
 │   │       └── page.tsx              # historique des AlertEvent, filtrable
 │   └── layout.tsx                    # layout racine
 ├── components/
+│   ├── session-provider.tsx          # session côté interface, redirection vers /login
+│   ├── app-header.tsx                # navigation, utilisateur connecté, déconnexion
+│   ├── admin-only.tsx                # masque ce qu'un lecteur ne peut pas faire
 │   ├── log-viewer/                   # composant virtualisé (react-window) pour l'affichage des logs
 │   ├── color-picker/
 │   └── app-status-badge/
@@ -35,6 +42,29 @@ apps/frontend/
 │   └── socket-client.ts              # wrapper Socket.IO
 └── styles/
 ```
+
+## 1 bis. Session et rôles
+
+`SessionProvider` enveloppe tout le layout protégé. Au montage il appelle
+`GET /api/auth/me` ; sans session, il redirige vers `/login` en conservant la
+page demandée (`?suite=`), pour ne pas perdre le lien qu'on venait d'ouvrir.
+
+**Rien de tout cela n'est un contrôle de sécurité.** Le backend vérifie la
+session et le rôle à chaque requête, et lui seul fait foi. L'interface se
+contente de ne pas afficher un écran vide, et de masquer — via `AdminOnly` et
+`AdminPage` — les actions qu'un lecteur ne pourrait de toute façon pas
+exécuter : proposer un bouton dont la seule issue est une erreur n'aide
+personne.
+
+Une session de douze heures expire volontiers pendant qu'un écran reste ouvert.
+Le client HTTP émet donc un événement sur `window` dès qu'une requête revient en
+`401`, quelle qu'elle soit ; le provider l'écoute et renvoie vers la connexion,
+plutôt que de laisser les données se figer sans explication.
+
+Le cookie de session étant `HttpOnly` et déposé par une autre origine que
+l'interface, `api-client` passe `credentials: 'include'` et le client Socket.IO
+`withCredentials: true`. Sans cela, tout reviendrait en `401` sans que rien ne
+l'explique à l'écran.
 
 ## 2. Composants clés
 

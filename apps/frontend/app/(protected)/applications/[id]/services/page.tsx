@@ -7,6 +7,7 @@ import { KNOWN_CHECK_TYPES, type Application, type MonitoredService } from '@sen
 
 import { ServiceStateDot } from '@/components/app-status-badge';
 import { ApiError, api } from '@/lib/api-client';
+import { AdminOnly } from '@/components/admin-only';
 
 /**
  * Gestion des services surveillés d'une application (docs/FRONTEND.md §2).
@@ -81,6 +82,7 @@ export default function ServicesPage() {
 
       {error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
+      <AdminOnly>
       <form onSubmit={add} className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-surface-raised p-4">
         <label className="flex-1 min-w-[240px] text-sm">
           <span className="mb-1 block text-slate-600">Nom du service</span>
@@ -120,6 +122,7 @@ export default function ServicesPage() {
           Ajouter
         </button>
       </form>
+      </AdminOnly>
 
       <p className="text-xs text-slate-500">
         Un service critique fait basculer le statut de l’application. Un service non critique alerte, sans faire passer
@@ -159,13 +162,15 @@ export default function ServicesPage() {
                   {service.lastCheckedAt ? new Date(service.lastCheckedAt).toLocaleString('fr-FR') : '—'}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => void remove(service)}
-                    className="text-xs text-slate-500 hover:text-red-700"
-                  >
-                    Retirer
-                  </button>
+                  <AdminOnly>
+                    <button
+                      type="button"
+                      onClick={() => void remove(service)}
+                      className="text-xs text-slate-500 hover:text-red-700"
+                    >
+                      Retirer
+                    </button>
+                  </AdminOnly>
                 </td>
               </tr>
             ))}

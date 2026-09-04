@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AnalyzerResult, AnalyzerRule, Application } from '@sentinel/shared-types';
 
 import { ApiError, api } from '@/lib/api-client';
+import { useIsAdmin } from '@/components/session-provider';
 
 /**
  * Règles d'analyse d'une application (docs/FRONTEND.md §1, docs/ALERTING.md §1).
@@ -159,11 +160,21 @@ function CarteRegle({
   onTester: () => void;
   onSupprimer?: () => void;
 }) {
+  // Activer, tester et supprimer une règle sont des écritures : le backend les
+  // refuse à un lecteur (docs/AUTH.md §7).
+  const admin = useIsAdmin();
+
   return (
     <div className={`rounded-lg border bg-surface-raised p-3 ${rule.enabled ? 'border-slate-200' : 'border-slate-200 opacity-60'}`}>
       <div className="flex flex-wrap items-start gap-3">
         <label className="flex items-center gap-2 pt-0.5">
-          <input type="checkbox" checked={rule.enabled} onChange={onBasculer} title="Activer ou désactiver" />
+          <input
+            type="checkbox"
+            checked={rule.enabled}
+            onChange={onBasculer}
+            disabled={!admin}
+            title={admin ? 'Activer ou désactiver' : 'Réservé aux administrateurs'}
+          />
         </label>
 
         <div className="min-w-0 flex-1">
@@ -205,22 +216,24 @@ function CarteRegle({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onTester}
-            disabled={enCours}
-            className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            title="Évalue la règle immédiatement, sans créer d’alerte ni notifier"
-          >
-            {enCours ? 'Test…' : 'Tester'}
-          </button>
-          {onSupprimer && (
-            <button type="button" onClick={onSupprimer} className="text-xs text-slate-500 hover:text-red-700">
-              Supprimer
+        {admin && (
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onTester}
+              disabled={enCours}
+              className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              title="Évalue la règle immédiatement, sans créer d’alerte ni notifier"
+            >
+              {enCours ? 'Test…' : 'Tester'}
             </button>
-          )}
-        </div>
+            {onSupprimer && (
+              <button type="button" onClick={onSupprimer} className="text-xs text-slate-500 hover:text-red-700">
+                Supprimer
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

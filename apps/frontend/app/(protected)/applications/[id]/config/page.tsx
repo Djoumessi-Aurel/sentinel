@@ -14,6 +14,7 @@ import {
 } from '@sentinel/shared-types';
 
 import { ApiError, api } from '@/lib/api-client';
+import { AdminPage } from '@/components/admin-only';
 
 /**
  * Configuration d'une application (docs/FRONTEND.md §5).
@@ -38,7 +39,7 @@ const DEFAULT_QUIET_HOURS: QuietHours = {
   mutedChannels: ['sound', 'sms'],
 };
 
-export default function ApplicationConfigPage() {
+function ApplicationConfigPage() {
   const params = useParams<{ id: string }>();
   const applicationId = params?.id ?? '';
 
@@ -380,5 +381,13 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
         />
       </span>
     </label>
+  );
+}
+
+export default function Page() {
+  return (
+    <AdminPage>
+      <ApplicationConfigPage />
+    </AdminPage>
   );
 }

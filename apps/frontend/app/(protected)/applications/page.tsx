@@ -6,6 +6,7 @@ import type { ApplicationSummary, CreatedApplication, Server } from '@sentinel/s
 
 import { AppStatusBadge } from '@/components/app-status-badge';
 import { ApiError, api } from '@/lib/api-client';
+import { AdminOnly } from '@/components/admin-only';
 
 /**
  * Déclaration et gestion des applications supervisées.
@@ -92,16 +93,18 @@ export default function ApplicationsPage() {
             {applications.length} application(s) déclarée(s) sur {servers.length} serveur(s)
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setOuvert((v) => !v);
-            setCree(null);
-          }}
-          className="rounded bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800"
-        >
-          {ouvert ? 'Annuler' : 'Ajouter une application'}
-        </button>
+        <AdminOnly>
+          <button
+            type="button"
+            onClick={() => {
+              setOuvert((v) => !v);
+              setCree(null);
+            }}
+            className="rounded bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800"
+          >
+            {ouvert ? 'Annuler' : 'Ajouter une application'}
+          </button>
+        </AdminOnly>
       </div>
 
       {error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -158,13 +161,15 @@ export default function ApplicationsPage() {
                   <AppStatusBadge health={app.health} size="sm" />
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => void supprimer(app)}
-                    className="text-xs text-slate-500 hover:text-red-700"
-                  >
-                    Supprimer
-                  </button>
+                  <AdminOnly>
+                    <button
+                      type="button"
+                      onClick={() => void supprimer(app)}
+                      className="text-xs text-slate-500 hover:text-red-700"
+                    >
+                      Supprimer
+                    </button>
+                  </AdminOnly>
                 </td>
               </tr>
             ))}

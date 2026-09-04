@@ -23,7 +23,7 @@ des règles paramétrables par application.
 | `docs/LOG_PARSERS.md` | Interface des parseurs de logs, implémentation par type d'appli, guide d'extension |
 | `docs/ALERTING.md` | Moteur de règles, notificateurs, anti-spam, détection de silence |
 | `docs/CONFIG_MANAGEMENT.md` | Logique config globale / config par appli, bouton « généraliser » |
-| `docs/AUTH.md` | Conception du futur module d'authentification (2FA), et comment le code actuel doit s'y préparer |
+| `docs/AUTH.md` | Authentification Active Directory, comptes techniques, rôles ; conception de la 2FA restant à faire |
 | `docs/AGENT_SETUP.md` | Guide pas-à-pas de création et déploiement des agents (logs + vérification de statut des services) |
 | `docs/FRONTEND.md` | Structure de l'application Next.js |
 | `docs/DEPLOYMENT.md` | Docker Compose, agents de collecte, variables d'environnement |
@@ -84,11 +84,10 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
    global à l'affichage). La propagation ne se fait que par copie explicite
    (création d'appli, bouton "généraliser"). Voir `docs/CONFIG_MANAGEMENT.md`.
 
-3. **Auth-ready dès le premier commit.** Le module d'authentification n'est
-   pas codé maintenant, mais toutes les routes API passent par un guard
-   d'autorisation (même s'il autorise tout pour l'instant), et le schéma de
-   données prévoit les colonnes nécessaires. Voir `docs/AUTH.md`. Ne jamais
-   coder une route "en dur" sans guard, même provisoire.
+3. **Aucune route sans garde.** Toutes les routes passent par `AuthGuard`, et
+   les écritures par `RolesGuard`. Une route publique doit être marquée
+   explicitement `@Public()` — l'oubli d'un garde ne doit jamais pouvoir passer
+   pour un choix. Voir `docs/AUTH.md`.
 
 4. **Tout ce qui peut échouer silencieusement doit avoir un mécanisme de
    détection.** En particulier : un agent qui cesse d'envoyer des logs, ou un
@@ -154,13 +153,17 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 5. Politique de rétention / purge automatique (voir `DATA_MODEL.md §4`)
 6. Bouton de test d'alerte (déclenchement manuel par canal)
 
-**Phase 4 (plus tard, hors périmètre immédiat)**
-1. Module d'authentification complet + 2FA (voir `docs/AUTH.md` pour la
-   préparation à faire dès maintenant)
-2. Gestion des rôles/permissions
+**Phase 4** — livrée, sauf la 2FA
+1. Authentification Active Directory : aucun mot de passe d'utilisateur n'est
+   stocké, et l'accès demande à la fois un compte AD valide et d'avoir été
+   déclaré utilisateur par un administrateur (voir `docs/AUTH.md`)
+2. Deux comptes techniques hors annuaire : `sentineluser` (écran d'open space)
+   et `sentineladmin` (super administrateur)
+3. Rôles `admin` / `viewer` : lecture ouverte à tous, écriture réservée
+4. 2FA TOTP — **reste à faire**, conception dans `docs/AUTH.md §10`
 
-Ne pas anticiper la Phase 4 en code fonctionnel, mais respecter les points de
-préparation listés dans `docs/AUTH.md` dès la Phase 1.
+La préparation faite dès la Phase 1 a tenu sa promesse : seul le contenu
+d'`AuthGuard` a changé, aucune route existante n'a eu à être reprise.
 
 ## 8. Ce qu'il ne faut jamais faire
 

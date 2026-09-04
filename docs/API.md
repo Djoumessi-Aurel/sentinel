@@ -1,8 +1,16 @@
 # API.md
 
-Toutes les routes sont préfixées `/api`. Format JSON. Toutes les routes
-passent par le guard d'autorisation (stub en Phase 1-3, voir `AUTH.md`) — ne
-jamais créer de route sans `@UseGuards(AuthGuard)` même provisoire.
+Toutes les routes sont préfixées `/api`. Format JSON.
+
+Toutes les routes passent par `AuthGuard` et exigent une session valide, sauf
+celles explicitement marquées `@Public()` — aujourd'hui la sonde de
+disponibilité, l'état de l'authentification, la connexion et la déconnexion. Ne
+jamais créer de route sans garde.
+
+Les lectures sont ouvertes à tout utilisateur authentifié ; les écritures
+demandent le rôle `admin` (`@Roles('admin')`, voir `AUTH.md §7`). Les routes
+d'ingestion font exception : elles s'authentifient par token d'agent, pas par
+session.
 
 ## 1. Ingestion (machine-à-machine, agents)
 
@@ -55,6 +63,35 @@ Le script de vérification installé sur le serveur applicatif appelle
 défaut) pour rafraîchir sa liste locale de services à checker, afin qu'un
 ajout/retrait de service dans l'interface n'exige pas de réinstallation
 manuelle sur le serveur (voir `AGENT_SETUP.md`).
+
+## 2 bis. Authentification et utilisateurs
+
+Détail du principe et des règles dans `AUTH.md`.
+
+```
+GET    /api/auth/status                  public — { mode, directoryReachable }
+POST   /api/auth/login                   public — { username, password } → CurrentUser
+                                         dépose le cookie de session, 5 tentatives/minute
+POST   /api/auth/logout                  public — efface le cookie
+GET    /api/auth/me                      utilisateur connecté
+```
+
+```
+GET    /api/users                        admin — liste des utilisateurs déclarés
+GET    /api/users/directory?q=...        admin — recherche dans l'annuaire (2 caractères min)
+POST   /api/users                        admin — { username, role } ; username doit exister dans l'annuaire
+PATCH  /api/users/:id                    admin — { role?, enabled? }
+DELETE /api/users/:id                    admin
+```
+
+La session voyage dans un cookie `sentinel_session` **HttpOnly**, jamais dans
+un en-tête que le JavaScript de la page pourrait lire. Les appels du frontend
+doivent donc passer `credentials: 'include'`, y compris la poignée de main du
+WebSocket.
+
+Un échec de connexion renvoie toujours `401` avec le même message, quelle qu'en
+soit la cause. Une requête sans session valide renvoie `401`, une requête
+authentifiée mais sans le rôle nécessaire renvoie `403`.
 
 ## 3. Applications
 
