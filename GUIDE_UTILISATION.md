@@ -483,6 +483,12 @@ automatique du support → Autoriser**.
 > ce soit : Edge est simplement plus restrictif que Chrome par défaut. Le réglage est à faire une
 > fois sur le poste qui pilote l'écran mural.
 
+**Sur un poste neuf, prévoyez le cas.** Chrome fonde sa décision sur l'usage déjà fait du site : ce
+crédit part de zéro sur une machine qui vient d'être installée, et la sirène peut y réclamer un clic
+les premiers jours, avant de se déclencher seule. Si l'écran doit être fiable dès le premier jour,
+utilisez Edge avec le réglage ci-dessus — il est déterministe, là où celui de Chrome dépend d'un
+historique.
+
 À défaut, un simple clic n'importe où dans la page lève le blocage — mais pour la session
 seulement, ce qui ne convient pas à un écran que personne ne touche.
 
