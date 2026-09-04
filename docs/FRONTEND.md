@@ -94,10 +94,18 @@ après chaque chargement de page, ce qui la rendait inutilisable sur un écran q
 personne ne touche. C'est d'ailleurs ainsi que fonctionne LTM, dont l'écran sonne
 sans aucune intervention.
 
-Le son est donc **synthétisé hors ligne** (`OfflineAudioContext`, qui ne sort pas
-sur les haut-parleurs et n'est soumis à aucune autorisation), **encodé en WAV**,
-puis joué par un `<audio>`. Aucun fichier à héberger, et le son reste disponible
-même si le backend est tombé — précisément le moment où on en a besoin.
+Le son est donc **calculé échantillon par échantillon en JavaScript**, encodé en
+WAV, puis joué par un `<audio>`. Aucun fichier à héberger, aucune API audio
+sollicitée pour le produire, et le son reste disponible même si le backend est
+tombé — précisément le moment où on en a besoin.
+
+> **Pourquoi pas `OfflineAudioContext` pour le rendu ?** C'était la première
+> approche. Chromium plafonne le nombre de contextes audio par processus de
+> rendu : au bout de quelques chargements de page, la création n'aboutissait
+> plus — sans erreur ni exception, la promesse restait simplement en attente et
+> le son ne partait plus jamais. Le calcul direct n'a aucune de ces limites, et
+> il est en prime testable sans navigateur : `test/siren-sound.test.mts` vérifie
+> les fréquences réellement produites, en comptant les passages par zéro.
 
 > **Piège de configuration.** Les sons sont exposés en URL `blob:`. La directive
 > `default-src 'self'` de la CSP couvre `media-src` et les bloque silencieusement
@@ -106,21 +114,38 @@ même si le backend est tombé — précisément le moment où on en a besoin.
 
 #### Si le navigateur refuse malgré tout
 
-1. `prepare()` rend les sons et teste la lecture automatique en jouant un
+1. `prepare()` synthétise les sons puis teste la lecture automatique en jouant un
    silence *audible-capable* : l'élément n'est pas en sourdine, la politique
    s'applique donc réellement, mais rien ne s'entend.
-2. En cas de refus, `armOnFirstGesture` écoute le **premier geste, quel qu'il
-   soit** (clic, touche, contact tactile). Aucun bouton dédié, aucune question.
-3. Tant que le son reste bloqué, un indicateur discret le signale — et cliquer
-   dessus est lui-même le geste qui l'active. Une surveillance sonore qui
-   échouerait en silence serait exactement ce que cette application est censée
-   empêcher (`CLAUDE.md §5.4`).
+2. En cas de refus (`NotAllowedError`), `armOnFirstGesture` écoute le **premier
+   geste, quel qu'il soit**. Aucun bouton dédié, aucune question posée.
+3. Un bandeau nomme alors le navigateur détecté et **le réglage exact** à
+   modifier pour régler la question définitivement — cliquer dessus active
+   d'ailleurs le son immédiatement.
 
 **Ne jamais enchaîner la pose des écouteurs derrière une promesse.** Une
 tentative de lecture peut rester en attente indéfiniment ; les écouteurs ne
-seraient alors jamais posés, plus aucun clic ne débloquerait le son, et
-l'indicateur resterait affiché pour toujours. Panne réellement rencontrée, et
-verrouillée par un test dans `test/alert-siren.test.mts`.
+seraient alors jamais posés, plus aucun clic ne débloquerait le son, et le
+bandeau resterait affiché pour toujours. Panne réellement rencontrée, verrouillée
+par un test.
+
+#### Écran d'open space : le réglage à faire une fois
+
+Sur un poste où personne n'interagit jamais avec la page, la seule garantie
+**déterministe** est d'autoriser le son au niveau du navigateur :
+
+| Navigateur | Réglage |
+|---|---|
+| Microsoft Edge | `edge://settings/content/mediaAutoplay` → Autoriser |
+| Google Chrome | `chrome://settings/content/sound` → autoriser le site |
+
+Sans ce réglage, le navigateur décide selon l'engagement qu'il a mémorisé pour
+le site — une notion opaque, qui se construit à mesure que des sons y sont
+réellement joués. Un refus a été observé sur Edge avec un profil neuf
+(`NotAllowedError` dès le second chargement) ; il ne se reproduit plus après le
+passage à l'élément `<audio>`, y compris en forçant la politique la plus stricte
+sur vingt-six chargements consécutifs. Le réglage ci-dessus reste néanmoins la
+seule façon de ne pas dépendre de cette heuristique.
 
 ### 3.2 Quelles alertes font sonner la sirène
 

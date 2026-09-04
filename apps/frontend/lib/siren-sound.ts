@@ -5,15 +5,18 @@ import type { AlertSeverity } from '@sentinel/shared-types';
 /**
  * Synthèse du signal de la sirène, et encodage en WAV.
  *
- * Le son est rendu **hors ligne** (`OfflineAudioContext`) puis joué par un
- * élément `<audio>`. Ce détour n'est pas gratuit : un `AudioContext` en lecture
- * directe exige une interaction utilisateur **dans chaque page chargée**, alors
- * qu'un élément média bénéficie de l'indice d'engagement du navigateur, qui est
- * mémorisé par site et survit aux rechargements. C'est ce qui permet à un écran
- * d'open space, que personne ne touche jamais, de sonner malgré tout.
+ * Les échantillons sont calculés **directement en JavaScript**, sans passer par
+ * l'API Web Audio. Ce n'est pas un choix esthétique : une première version
+ * rendait le son via `OfflineAudioContext`, et Chromium plafonne le nombre de
+ * contextes audio par processus de rendu. Sur un profil qui enchaîne les
+ * chargements de page, la création finissait par ne plus aboutir — sans erreur,
+ * sans exception, la promesse restait simplement en attente et le son ne partait
+ * jamais. Le calcul direct n'a aucune de ces limites : il est synchrone,
+ * déterministe, et testable sans navigateur.
  *
- * Le rendu hors ligne, lui, n'est soumis à aucune autorisation : il ne sort pas
- * sur les haut-parleurs, il produit seulement des échantillons.
+ * Le résultat est encodé en WAV puis joué par un élément `<audio>`, dont la
+ * politique de lecture automatique est bien plus favorable que celle d'un
+ * `AudioContext` (voir docs/FRONTEND.md §3.1).
  */
 
 export interface Pattern {
@@ -23,8 +26,9 @@ export interface Pattern {
   readonly step: number;
   /** Les deux fréquences alternées, en hertz. */
   readonly tones: readonly [number, number];
+  /** Amplitude crête, entre 0 et 1. */
   readonly gain: number;
-  readonly wave: OscillatorType;
+  readonly wave: 'sawtooth' | 'triangle';
 }
 
 export const PATTERNS: Record<AlertSeverity, Pattern> = {
@@ -36,50 +40,58 @@ export const PATTERNS: Record<AlertSeverity, Pattern> = {
 };
 
 /**
- * Suffisant pour une sirène (dont les harmoniques utiles restent sous 10 kHz),
- * et divise par deux le poids du WAV rendu.
+ * Suffisant pour une sirène, dont les harmoniques utiles restent bien en deçà de
+ * la limite de Nyquist à cette fréquence, et divise par deux le poids du WAV.
  */
 export const SAMPLE_RATE = 22_050;
 
+/** Attaque et extinction, en secondes : évitent le claquement en début et fin. */
+const ATTACK = 0.03;
+const RELEASE = 0.12;
+
+/** Forme d'onde à partir d'une phase normalisée dans [0, 1[. */
+function waveform(kind: Pattern['wave'], phase: number): number {
+  // Dent de scie : riche en harmoniques, donc bien plus perçante qu'une
+  // sinusoïde à volume égal. Triangle : nettement plus douce, pour l'avertissement.
+  return kind === 'sawtooth' ? 2 * phase - 1 : 4 * Math.abs(phase - 0.5) - 1;
+}
+
 /**
- * Programme l'oscillateur et son enveloppe. Isolé du rendu pour être testable
- * sans navigateur : les tests vérifient le motif programmé, qui est ce qui rend
- * le son perçant et durable.
+ * Calcule les échantillons de la sirène.
+ *
+ * La phase est accumulée en continu d'un échantillon à l'autre : la recalculer
+ * à partir du temps absolu produirait une discontinuité à chaque changement de
+ * tonalité, entendue comme un claquement.
  */
-export function scheduleSiren(context: BaseAudioContext, pattern: Pattern, startAt = 0): void {
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = pattern.wave;
+export function synthesize(pattern: Pattern, sampleRate = SAMPLE_RATE): Float32Array {
+  const total = Math.ceil(pattern.duration * sampleRate);
+  const samples = new Float32Array(total);
 
-  const end = startAt + pattern.duration;
+  let phase = 0;
+  for (let index = 0; index < total; index += 1) {
+    const time = index / sampleRate;
 
-  // Alternance des deux tons sur toute la durée.
-  let at = startAt;
-  let high = true;
-  while (at < end) {
-    oscillator.frequency.setValueAtTime(high ? pattern.tones[0] : pattern.tones[1], at);
-    at += pattern.step;
-    high = !high;
+    // Alternance des deux tonalités.
+    const tone = pattern.tones[Math.floor(time / pattern.step) % 2 === 0 ? 0 : 1];
+    phase = (phase + tone / sampleRate) % 1;
+
+    // Enveloppe : attaque, pulsation à chaque changement de ton pour éviter
+    // l'accoutumance à un son continu, extinction en fin de motif.
+    const positionInStep = (time % pattern.step) / pattern.step;
+    let envelope = 0.55 + 0.45 * Math.min(positionInStep / 0.35, 1);
+
+    if (time < ATTACK) envelope *= time / ATTACK;
+    const remaining = pattern.duration - time;
+    if (remaining < RELEASE) envelope *= Math.max(remaining, 0) / RELEASE;
+
+    samples[index] = waveform(pattern.wave, phase) * pattern.gain * envelope;
   }
 
-  // Enveloppe : montée franche, pulsation à chaque changement de ton pour éviter
-  // l'accoutumance à un son continu, extinction douce pour ne pas claquer.
-  gain.gain.setValueAtTime(0.0001, startAt);
-  gain.gain.exponentialRampToValueAtTime(pattern.gain, startAt + 0.03);
-  for (let pulse = startAt + pattern.step; pulse < end - pattern.step; pulse += pattern.step) {
-    gain.gain.setValueAtTime(pattern.gain * 0.55, pulse);
-    gain.gain.linearRampToValueAtTime(pattern.gain, pulse + pattern.step * 0.35);
-  }
-  gain.gain.setValueAtTime(pattern.gain, end - 0.12);
-  gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start(startAt);
-  oscillator.stop(end);
+  return samples;
 }
 
 /** Encode un buffer mono en WAV PCM 16 bits. */
-export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+export function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE): Blob {
   const octets = new ArrayBuffer(44 + samples.length * 2);
   const vue = new DataView(octets);
 
@@ -110,21 +122,16 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   return new Blob([octets], { type: 'audio/wav' });
 }
 
-/** Rend la sirène d'une gravité donnée en WAV. */
-export async function renderSiren(severity: AlertSeverity): Promise<Blob> {
-  const pattern = PATTERNS[severity];
-  const contexte = new OfflineAudioContext(1, Math.ceil(pattern.duration * SAMPLE_RATE), SAMPLE_RATE);
-  scheduleSiren(contexte, pattern);
-  const rendu = await contexte.startRendering();
-  return encodeWav(rendu.getChannelData(0), SAMPLE_RATE);
+/** Rend la sirène d'une gravité donnée en WAV. Synchrone : aucun calcul différé. */
+export function renderSiren(severity: AlertSeverity): Blob {
+  return encodeWav(synthesize(PATTERNS[severity]));
 }
 
 /**
  * WAV de silence très court, servant à tester si la lecture automatique est
  * permise. Il n'est pas *muet* au sens du navigateur — l'élément n'est pas en
- * sourdine — donc la politique s'y applique réellement, mais il ne produit
- * aucun son audible.
+ * sourdine — donc la politique s'y applique réellement, mais rien ne s'entend.
  */
 export function renderSilence(durationSeconds = 0.05): Blob {
-  return encodeWav(new Float32Array(Math.ceil(durationSeconds * SAMPLE_RATE)), SAMPLE_RATE);
+  return encodeWav(new Float32Array(Math.ceil(durationSeconds * SAMPLE_RATE)));
 }

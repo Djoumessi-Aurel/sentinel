@@ -2,82 +2,19 @@ import assert from 'node:assert/strict';
 import { before, beforeEach, describe, it } from 'node:test';
 
 /**
- * Tests de la sirène d'alerte.
+ * Tests de la **mécanique de déclenchement** de la sirène.
  *
- * Deux niveaux :
- *  - le **signal** lui-même (durée, alternances, timbre, amplitude), qui décide
- *    si le son fait lever la tête ou passe pour une notification de téléphone ;
- *  - la **mécanique de déclenchement**, qui est la partie ayant réellement
- *    échoué en conditions normales et qui mérite donc des tests de régression.
+ * Le signal sonore lui-même est couvert par `siren-sound.test.mts`. Ici on
+ * vérifie ce qui a réellement cassé en conditions normales : la détection de la
+ * politique de lecture automatique et le déblocage au premier geste.
  */
-
-// --- Doublures du navigateur -------------------------------------------------
-
-interface Programmation {
-  frequences: number[];
-  gains: number[];
-  debut: number;
-  fin: number;
-  timbre: string;
-}
-
-/** Contexte audio factice : enregistre ce qui aurait été programmé. */
-class FauxContexte {
-  readonly programmations: Programmation[] = [];
-  destination = { nom: 'destination' };
-
-  createOscillator(): unknown {
-    const programmation: Programmation = { frequences: [], gains: [], debut: 0, fin: 0, timbre: '' };
-    this.programmations.push(programmation);
-    const oscillateur = {
-      type: '',
-      frequency: { setValueAtTime: (v: number) => programmation.frequences.push(v) },
-      connect: (cible: unknown) => cible,
-      start: (when: number) => {
-        programmation.debut = when;
-      },
-      stop: (when: number) => {
-        programmation.fin = when;
-        programmation.timbre = oscillateur.type;
-      },
-    };
-    return oscillateur;
-  }
-
-  createGain(): unknown {
-    const programmation = this.programmations[this.programmations.length - 1];
-    return {
-      gain: {
-        setValueAtTime: (v: number) => programmation?.gains.push(v),
-        exponentialRampToValueAtTime: (v: number) => programmation?.gains.push(v),
-        linearRampToValueAtTime: (v: number) => programmation?.gains.push(v),
-      },
-      connect: (cible: unknown) => cible,
-    };
-  }
-}
-
-class FauxOfflineAudioContext extends FauxContexte {
-  // Champs déclarés puis affectés : les « paramètres-propriétés » de TypeScript
-  // ne sont pas gérés par le mode d'exécution directe de Node.
-  length: number;
-  sampleRate: number;
-
-  constructor(_channels: number, length: number, sampleRate: number) {
-    super();
-    this.length = length;
-    this.sampleRate = sampleRate;
-  }
-
-  async startRendering(): Promise<{ getChannelData: () => Float32Array }> {
-    return { getChannelData: () => new Float32Array(this.length) };
-  }
-}
 
 /** Élément `<audio>` factice, dont on pilote l'autorisation de lecture. */
 class FauxAudio {
   /** Le navigateur autorise-t-il la lecture automatique ? */
   static autorise = true;
+  /** Nom de l'erreur levée en cas de refus. */
+  static erreur = 'NotAllowedError';
   static instances: FauxAudio[] = [];
 
   src = '';
@@ -85,6 +22,7 @@ class FauxAudio {
   currentTime = 0;
   preload = '';
   readonly lectures: string[] = [];
+  tentatives = 0;
   pauses = 0;
 
   constructor() {
@@ -92,9 +30,10 @@ class FauxAudio {
   }
 
   async play(): Promise<void> {
+    this.tentatives += 1;
     if (!FauxAudio.autorise) {
-      const erreur = new Error('play() failed because the user didn’t interact with the document first.');
-      erreur.name = 'NotAllowedError';
+      const erreur = new Error('lecture refusée');
+      erreur.name = FauxAudio.erreur;
       throw erreur;
     }
     this.lectures.push(this.src);
@@ -121,121 +60,55 @@ function fauxDocument() {
   };
 }
 
-let sonModule: typeof import('../lib/siren-sound.ts');
+const patienter = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+
 let AlertSiren: typeof import('../lib/alert-siren.ts').AlertSiren;
 
 before(async () => {
   const globaux = globalThis as Record<string, unknown>;
   globaux['window'] = globalThis;
   globaux['Audio'] = FauxAudio;
-  globaux['OfflineAudioContext'] = FauxOfflineAudioContext;
-  // `URL.createObjectURL` existe nativement dans Node : ne pas y toucher, la
-  // remplacer casse des rouages internes du lanceur de tests.
-
-  sonModule = await import('../lib/siren-sound.ts');
   ({ AlertSiren } = await import('../lib/alert-siren.ts'));
 });
 
 beforeEach(() => {
   FauxAudio.autorise = true;
+  FauxAudio.erreur = 'NotAllowedError';
   FauxAudio.instances = [];
   (globalThis as Record<string, unknown>)['document'] = fauxDocument();
 });
 
-// --- Le signal sonore --------------------------------------------------------
-
-describe('signal de la sirène', () => {
-  const programmer = (severite: 'critical' | 'warning') => {
-    const contexte = new FauxContexte();
-    sonModule.scheduleSiren(contexte as unknown as BaseAudioContext, sonModule.PATTERNS[severite]);
-    return contexte.programmations[0]!;
-  };
-
-  describe('alerte critique', () => {
-    it('dure assez longtemps pour faire lever la tête', () => {
-      const p = programmer('critical');
-      assert.equal(p.fin - p.debut, 8);
-    });
-
-    it('alterne deux tonalités de nombreuses fois, comme une sirène', () => {
-      const p = programmer('critical');
-      assert.ok(p.frequences.length >= 20, `seulement ${p.frequences.length} tonalités`);
-
-      const distinctes = new Set(p.frequences);
-      assert.equal(distinctes.size, 2, 'un son à une seule fréquence n’attire pas l’attention');
-      assert.deepEqual([...distinctes].sort((a, b) => b - a), [988, 740]);
-    });
-
-    it('utilise un timbre perçant et un volume élevé', () => {
-      const p = programmer('critical');
-      // La dent de scie est bien plus riche en harmoniques qu'une sinusoïde :
-      // à volume égal, elle porte beaucoup plus loin.
-      assert.equal(p.timbre, 'sawtooth');
-      assert.ok(Math.max(...p.gains) >= 0.5, 'volume trop faible pour un open space');
-    });
-
-    it('pulse au lieu de tenir une note continue', () => {
-      const p = programmer('critical');
-      const niveaux = new Set(p.gains.map((g) => Math.round(g * 100)));
-      assert.ok(niveaux.size >= 2, 'aucune pulsation : le son est plat');
-    });
-  });
-
-  it('garde l’avertissement bref et plus discret que le critique', () => {
-    const critique = programmer('critical');
-    const avertissement = programmer('warning');
-
-    assert.ok(
-      avertissement.fin - avertissement.debut < (critique.fin - critique.debut) / 2,
-      'un avertissement ne doit pas interrompre le plateau',
-    );
-    assert.ok(Math.max(...avertissement.gains) < Math.max(...critique.gains));
-  });
-});
-
-describe('encodage WAV', () => {
-  it('produit un en-tête RIFF/WAVE valide et la bonne taille', async () => {
-    const echantillons = new Float32Array(1000);
-    const blob = sonModule.encodeWav(echantillons, 22_050);
-    const octets = new Uint8Array(await blob.arrayBuffer());
-    const texte = (debut: number, fin: number) => String.fromCharCode(...octets.slice(debut, fin));
-
-    assert.equal(texte(0, 4), 'RIFF');
-    assert.equal(texte(8, 12), 'WAVE');
-    assert.equal(texte(36, 40), 'data');
-    // 44 octets d'en-tête + 2 octets par échantillon (PCM 16 bits mono).
-    assert.equal(blob.size, 44 + 1000 * 2);
-    assert.equal(blob.type, 'audio/wav');
-  });
-
-  it('écrête les valeurs hors bornes plutôt que de produire un craquement', async () => {
-    const blob = sonModule.encodeWav(new Float32Array([2, -2]), 22_050);
-    const vue = new DataView(await blob.arrayBuffer());
-    assert.equal(vue.getInt16(44, true), 32767);
-    assert.equal(vue.getInt16(46, true), -32768);
-  });
-});
-
-// --- La mécanique de déclenchement -------------------------------------------
-
 describe('AlertSiren', () => {
   /**
    * Le cas de l'écran d'open space : personne n'interagit jamais avec la page.
-   * Un élément `<audio>` s'appuie sur l'engagement mémorisé par site, ce qui
-   * permet de sonner sans le moindre clic — contrairement à un AudioContext,
-   * qui exige une interaction dans chaque page chargée.
+   * Un élément `<audio>` peut sonner sans interaction, contrairement à un
+   * `AudioContext` qui l'exige à chaque chargement de page.
    */
   it('est prête sans aucune interaction quand le navigateur l’autorise', async () => {
     const sirene = new AlertSiren();
     assert.equal(await sirene.prepare(), 'ready');
+    assert.equal(sirene.blockedReason, null);
+  });
+
+  /**
+   * La préparation doit aboutir **à chaque chargement de page**. Une première
+   * version passait par `OfflineAudioContext`, dont Chromium plafonne le nombre
+   * d'instances : au-delà, la promesse restait en attente sans lever d'erreur, et
+   * le son ne partait plus jamais. La synthèse est désormais synchrone.
+   */
+  it('se prépare de façon répétée sans jamais rester en attente', async () => {
+    for (let essai = 0; essai < 20; essai += 1) {
+      const sirene = new AlertSiren();
+      const etat = await Promise.race([sirene.prepare(), patienter(500).then(() => 'EN ATTENTE' as const)]);
+      assert.equal(etat, 'ready', `préparation bloquée à l’essai ${essai + 1}`);
+    }
   });
 
   it('joue la sirène demandée', async () => {
     const sirene = new AlertSiren();
     await sirene.prepare();
-
     assert.equal(sirene.play('critical'), true);
-    await new Promise((r) => setTimeout(r, 5));
+    await patienter();
 
     const element = FauxAudio.instances[0]!;
     // La première lecture est le silence de test, la seconde la sirène.
@@ -247,18 +120,17 @@ describe('AlertSiren', () => {
     const sirene = new AlertSiren();
     await sirene.prepare();
     const element = FauxAudio.instances[0]!;
-    const pausesAvant = element.pauses;
+    const avant = element.pauses;
 
     sirene.play('warning');
     sirene.play('critical');
-    assert.ok(element.pauses > pausesAvant, 'la lecture précédente aurait dû être interrompue');
+    assert.ok(element.pauses > avant, 'la lecture précédente aurait dû être interrompue');
   });
 
   it('peut être coupée à la demande', async () => {
     const sirene = new AlertSiren();
     await sirene.prepare();
     sirene.play('critical');
-
     sirene.stop();
     assert.equal(FauxAudio.instances[0]!.currentTime, 0);
   });
@@ -271,20 +143,18 @@ describe('AlertSiren', () => {
     it('signale que le son est bloqué au lieu d’échouer en silence', async () => {
       const sirene = new AlertSiren();
       assert.equal(await sirene.prepare(), 'blocked');
-      assert.equal(sirene.state, 'blocked');
+      assert.equal(sirene.blockedReason, 'autoplay');
     });
 
     /**
-     * Régression : les écouteurs de geste doivent être posés de façon
-     * synchrone. Les enchaîner derrière une promesse les rendait tributaires de
-     * sa résolution — et une promesse restée en attente suffisait à ce
-     * qu'aucun clic ne débloque plus jamais rien.
+     * Régression : les écouteurs de geste doivent être posés de façon synchrone.
+     * Les enchaîner derrière une promesse les rendait tributaires de sa
+     * résolution — et une promesse restée en attente suffisait à ce qu'aucun
+     * clic ne débloque plus jamais rien.
      */
     it('pose ses écouteurs immédiatement, sans attendre quoi que ce soit', () => {
       const faux = globalThis.document as unknown as ReturnType<typeof fauxDocument>;
-      const sirene = new AlertSiren();
-
-      sirene.armOnFirstGesture();
+      new AlertSiren().armOnFirstGesture();
       assert.ok(faux.nombreEcouteurs() > 0, 'aucun écouteur posé : un clic ne pourrait rien débloquer');
     });
 
@@ -297,10 +167,9 @@ describe('AlertSiren', () => {
       sirene.armOnFirstGesture();
       await sirene.prepare();
 
-      // L'utilisateur clique : le navigateur autorise désormais la lecture.
       FauxAudio.autorise = true;
       faux.declencher('pointerdown');
-      await new Promise((r) => setTimeout(r, 10));
+      await patienter();
 
       assert.equal(sirene.state, 'ready');
       assert.ok(etats.includes('ready'), `états observés : ${etats.join(', ')}`);
@@ -309,18 +178,34 @@ describe('AlertSiren', () => {
 
     it('reste à l’écoute si le geste ne suffit pas', async () => {
       const faux = globalThis.document as unknown as ReturnType<typeof fauxDocument>;
-      const sirene = new AlertSiren();
+      new AlertSiren().armOnFirstGesture();
 
-      sirene.armOnFirstGesture();
       faux.declencher('pointerdown');
-      await new Promise((r) => setTimeout(r, 10));
-
+      await patienter();
       assert.ok(faux.nombreEcouteurs() > 0, 'abandonner après un geste raté condamnerait le son');
     });
 
-    it('repasse à « bloqué » si une lecture est refusée en cours de route', async () => {
+    /**
+     * Un `AbortError` survient quand une source est remplacée en cours de
+     * chargement : incident passager, pas refus. Le confondre avec un refus
+     * afficherait à tort que la surveillance sonore est coupée.
+     */
+    it('réessaie sur un incident passager au lieu de conclure au refus', async () => {
+      FauxAudio.erreur = 'AbortError';
       const sirene = new AlertSiren();
+
+      const attente = sirene.prepare();
+      setTimeout(() => {
+        FauxAudio.autorise = true;
+      }, 100);
+
+      assert.equal(await attente, 'ready');
+      assert.ok(FauxAudio.instances[0]!.tentatives > 1, 'aucune nouvelle tentative');
+    });
+
+    it('repasse à « bloqué » si une lecture est refusée en cours de route', async () => {
       FauxAudio.autorise = true;
+      const sirene = new AlertSiren();
       await sirene.prepare();
       assert.equal(sirene.state, 'ready');
 
@@ -328,7 +213,7 @@ describe('AlertSiren', () => {
       // prétendre que la surveillance sonore fonctionne.
       FauxAudio.autorise = false;
       sirene.play('critical');
-      await new Promise((r) => setTimeout(r, 10));
+      await patienter();
 
       assert.equal(sirene.state, 'blocked');
     });

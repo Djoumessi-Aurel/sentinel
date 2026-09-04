@@ -24,10 +24,10 @@ import { PATTERNS, renderSilence, renderSiren } from './siren-sound.ts';
  *   mémorisé **par site** et survit aux rechargements comme aux redémarrages.
  *   C'est exactement ce qui fait fonctionner l'écran de LTM sans le moindre clic.
  *
- * Le son est donc synthétisé hors ligne (rendu qui, lui, ne demande aucune
- * autorisation), encodé en WAV, puis joué par un `<audio>`. Aucun fichier à
- * héberger, et le son reste disponible même si le backend est tombé — ce qui est
- * précisément le moment où on en a besoin.
+ * Le son est donc calculé échantillon par échantillon en JavaScript, encodé en
+ * WAV, puis joué par un `<audio>`. Aucun fichier à héberger, aucune API audio
+ * sollicitée pour le produire, et le son reste disponible même si le backend est
+ * tombé — ce qui est précisément le moment où on en a besoin.
  */
 
 export type SirenState =
@@ -46,15 +46,14 @@ export class AlertSiren {
   private readonly sources = new Map<AlertSeverity, string>();
   private silenceUrl: string | null = null;
   private currentState: SirenState = 'blocked';
+  /** Nom de la dernière erreur de lecture, pour distinguer refus et incident. */
+  private lastErrorName: string | null = null;
+  private warned = false;
   private preparing: Promise<SirenState> | null = null;
   private readonly observers = new Set<(state: SirenState) => void>();
 
   get supported(): boolean {
-    return (
-      typeof window !== 'undefined' &&
-      typeof window.Audio !== 'undefined' &&
-      typeof window.OfflineAudioContext !== 'undefined'
-    );
+    return typeof window !== 'undefined' && typeof window.Audio !== 'undefined';
   }
 
   get state(): SirenState {
@@ -91,11 +90,11 @@ export class AlertSiren {
     this.element ??= new Audio();
     this.element.preload = 'auto';
 
-    // Rendu hors ligne : aucune autorisation requise, on peut le faire au
-    // chargement sans rien demander.
+    // Synthèse directe : synchrone, sans contexte audio, donc sans le plafond
+    // de Chromium qui faisait rester la préparation en attente indéfiniment.
     for (const severity of Object.keys(PATTERNS) as AlertSeverity[]) {
       if (!this.sources.has(severity)) {
-        this.sources.set(severity, URL.createObjectURL(await renderSiren(severity)));
+        this.sources.set(severity, URL.createObjectURL(renderSiren(severity)));
       }
     }
     this.silenceUrl ??= URL.createObjectURL(renderSilence());
@@ -108,7 +107,7 @@ export class AlertSiren {
    * n'est pas en sourdine, la politique du navigateur s'applique donc vraiment,
    * mais rien ne se fait entendre.
    */
-  private async probe(): Promise<SirenState> {
+  private async probe(attempt = 1): Promise<SirenState> {
     if (!this.element || !this.silenceUrl) return 'blocked';
 
     try {
@@ -117,14 +116,66 @@ export class AlertSiren {
       await this.element.play();
       this.element.pause();
       this.element.currentTime = 0;
+      this.lastErrorName = null;
       this.setState('ready');
       return 'ready';
-    } catch {
-      // NotAllowedError : le navigateur exige une interaction. On le signale
-      // plutôt que de laisser croire que la surveillance sonore fonctionne.
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'Error';
+      this.lastErrorName = name;
+
+      // `NotAllowedError` est le seul vrai refus de lecture automatique. Les
+      // autres — `AbortError` quand une source est remplacée en cours de
+      // chargement, par exemple — sont des incidents passagers : les traiter
+      // comme un refus afficherait à tort que le son est coupé.
+      if (name !== 'NotAllowedError' && attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+        return this.probe(attempt + 1);
+      }
+
+      if (!this.warned) {
+        this.warned = true;
+        // Trace unique : sans elle, un son absent ne laisse aucune explication
+        // à qui ouvre la console pour comprendre.
+        console.warn(
+          `[Sentinel] Sirène bloquée par le navigateur (${name}). ` +
+            "Un clic quelconque dans la page l'active, ou autoriser le son pour ce site " +
+            'dans les paramètres du navigateur (edge://settings/content/mediaAutoplay, ' +
+            'chrome://settings/content/sound).',
+        );
+      }
+
       this.setState('blocked');
       return 'blocked';
     }
+  }
+
+  /**
+   * Réglage du navigateur permettant d'autoriser le son une fois pour toutes.
+   *
+   * Seule issue déterministe pour un écran d'open space, que personne
+   * n'interagit jamais : le navigateur n'accorde la lecture automatique qu'après
+   * un engagement suffisant sur le site, engagement qui ne peut pas se
+   * construire tant qu'aucun son n'a jamais été joué.
+   */
+  get browserSoundSetting(): { label: string; url: string } {
+    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+    if (agent.includes('Edg/')) {
+      return { label: 'Microsoft Edge', url: 'edge://settings/content/mediaAutoplay' };
+    }
+    if (agent.includes('Firefox/')) {
+      return { label: 'Firefox', url: 'about:preferences#privacy' };
+    }
+    return { label: 'Google Chrome', url: 'chrome://settings/content/sound' };
+  }
+
+  /**
+   * Pourquoi le son est bloqué. `autoplay` désigne un refus formel du
+   * navigateur, qui ne se lève que par une interaction ou par un réglage du
+   * navigateur lui-même.
+   */
+  get blockedReason(): 'autoplay' | 'other' | null {
+    if (this.currentState !== 'blocked') return null;
+    return this.lastErrorName === 'NotAllowedError' ? 'autoplay' : 'other';
   }
 
   /**

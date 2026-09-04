@@ -80,6 +80,8 @@ export function AlertCenter() {
   );
 
   const silenceForce = sirenState === 'blocked';
+  // Réglage à indiquer à l'opérateur, propre au navigateur utilisé.
+  const reglage = silenceForce ? getSiren().browserSoundSetting : null;
 
   return (
     <>
@@ -90,16 +92,22 @@ export function AlertCenter() {
         application est censée empêcher (docs/CLAUDE.md §5.4). L'indicateur est
         volontairement discret : ce n'est pas une action à mener, juste un état.
       */}
-      {silenceForce && (
-        <button
-          type="button"
-          // Cliquer sur l'indicateur est lui-même le geste qui débloque le son :
-          // l'utilisateur qui le remarque n'a rien d'autre à chercher.
-          onClick={() => void getSiren().prepare().then(setSirenState)}
-          className="w-full border-b border-slate-200 bg-slate-100 px-6 py-1 text-center text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-700"
-        >
-          Son en attente d’une première interaction avec la page — cliquer n’importe où, ou ici, l’active.
-        </button>
+      {silenceForce && reglage && (
+        <div className="border-b border-amber-200 bg-amber-50 px-6 py-1.5 text-center text-xs text-amber-900">
+          <button
+            type="button"
+            // Cliquer est lui-même le geste qui débloque le son : celui qui
+            // remarque le bandeau n'a rien d'autre à chercher.
+            onClick={() => void getSiren().prepare().then(setSirenState)}
+            className="font-medium underline underline-offset-2 hover:text-amber-950"
+          >
+            Alertes sonores bloquées par {reglage.label} — cliquer ici les active
+          </button>
+          <span className="ml-2 text-amber-700">
+            (définitivement : autoriser le son pour ce site dans{' '}
+            <code className="rounded bg-amber-100 px-1 py-0.5 font-mono">{reglage.url}</code>)
+          </span>
+        </div>
       )}
 
       {/* Bandeau des alertes reçues en direct, visible sur toutes les pages. */}
