@@ -155,6 +155,20 @@ export interface AnalyzerResult {
   details?: Record<string, unknown>;
 }
 
+/**
+ * Un canal a-t-il réellement notifié pour cette alerte ?
+ *
+ * `channelsNotified` est renseigné par le backend au moment de l'alerte : il
+ * porte donc déjà la décision complète — canal activé pour l'application **et**
+ * hors heures creuses. Le frontend s'y fie plutôt que de refaire le calcul à
+ * partir de la configuration, ce qui garantit qu'une sirène ne peut pas sonner
+ * pour une application dont le canal sonore est coupé, ni pendant une plage de
+ * silence (docs/ALERTING.md §2 et §4).
+ */
+export function isChannelNotified(alert: Pick<AlertEvent, 'channelsNotified'>, channel: AlertChannelName): boolean {
+  return alert.channelsNotified.some((entry) => entry.channel === channel && entry.status === 'sent');
+}
+
 export const testChannelSchema = z.object({
   applicationId: z.string().uuid(),
   channel: z.enum(ALERT_CHANNEL_NAMES),

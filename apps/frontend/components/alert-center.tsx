@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AlertNewEvent } from '@sentinel/shared-types';
+import { isChannelNotified, type AlertNewEvent } from '@sentinel/shared-types';
 
 import { getSiren, type SirenState } from '@/lib/alert-siren';
 import { useGlobalAlerts } from '@/lib/socket-client';
@@ -68,7 +68,11 @@ export function AlertCenter() {
     (event: AlertNewEvent) => {
       setRecent((current) => [event, ...current.filter((item) => item.alert.id !== event.alert.id)].slice(0, RECENT_LIMIT));
 
-      if (!soundWanted) return;
+      // La sirène ne sonne que pour les applications dont le canal sonore est
+      // activé. On se fie au statut consigné par le backend au moment de
+      // l'alerte plutôt que de relire la configuration : il porte déjà la
+      // décision complète, heures creuses comprises (docs/ALERTING.md §2 et §4).
+      if (!soundWanted || !isChannelNotified(event.alert, 'sound')) return;
       if (!getSiren().play(event.alert.severity)) return;
 
       setRinging(true);
@@ -143,6 +147,14 @@ export function AlertCenter() {
                   {event.applicationName}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{event.alert.message}</span>
+                {!isChannelNotified(event.alert, 'sound') && (
+                  <span
+                    className="shrink-0 text-[11px] text-red-600"
+                    title="Le canal sonore est désactivé pour cette application, ou nous sommes en heures creuses."
+                  >
+                    sans son
+                  </span>
+                )}
               </Link>
             ))}
           </div>

@@ -93,12 +93,40 @@ téléphone. Un avertissement reste bref et discret. Les caractéristiques
 (durée, alternance, timbre, amplitude) sont verrouillées par
 `test/alert-siren.test.mts`.
 
+
+### 3.2 Quelles alertes font sonner la sirène
+
+Seules celles dont le canal `sound` a effectivement notifié. La règle est portée
+par `isChannelNotified` (`packages/shared-types`), qui lit le statut consigné par
+le backend dans `AlertEvent.channelsNotified` — voir `ALERTING.md §2`.
+
+Conséquences directes :
+
+- une application dont le canal sonore est décoché reste **silencieuse**, tout en
+  continuant d'apparaître dans le bandeau des alertes en direct, annotée
+  « sans son » pour que l'absence de sirène ne passe pas pour une panne du son ;
+- les heures creuses sont respectées sans code supplémentaire côté client ;
+- le réglage se fait application par application dans
+  `applications/[id]/config` (§5).
+
 ## 4. Dashboard (vue d'ensemble)
 
 Page d'accueil de l'application : grille des applis avec leur `AppStatusBadge`,
 triée par sévérité (les applis en alerte critique en premier). Objectif direct
 avec le besoin exprimé : un coup d'œil suffit pour voir si un problème est en
 cours quelque part, sans attendre un signalement utilisateur.
+
+## 5.1 Écran de configuration par application — livré
+
+`applications/[id]/config` regroupe les canaux d'alerte (avec les destinataires
+email et SMS, et un bouton de test par canal), les heures creuses, et les
+couleurs d'affichage propres à l'application, avec l'indicateur « aligné /
+différent de la configuration globale » qui aide à décider quoi cocher avant de
+généraliser. Les règles d'analyse et les services surveillés gardent leurs
+écrans dédiés.
+
+C'est ici que se règle le canal sonore, donc ce qui fait sonner ou non la sirène
+(§3.2).
 
 ## 5. Accessibilité couleurs
 

@@ -129,6 +129,12 @@ export default function LivePage() {
             Services
           </Link>
           <Link
+            href={`/applications/${application.id}/config`}
+            className="rounded border border-slate-200 px-3 py-1.5 text-slate-700 hover:bg-slate-100"
+          >
+            Configuration
+          </Link>
+          <Link
             href={`/applications/${application.id}/history`}
             className="rounded border border-slate-200 px-3 py-1.5 text-slate-700 hover:bg-slate-100"
           >

@@ -121,9 +121,14 @@ interface Notifier {
 
 - `visual` : publie sur le WebSocket (`alert:new`), consommé par le frontend
   (bandeau + changement de couleur)
-- `sound` : pas de backend dédié — le frontend joue un son local à la
-  réception de `alert:new` si le canal `sound` est activé pour l'appli
-  concernée
+- `sound` : pas de backend dédié — le frontend déclenche la sirène à la
+  réception de `alert:new`, **uniquement si `channelsNotified` porte
+  `{ channel: 'sound', status: 'sent' }`** pour cette alerte. Le frontend ne
+  relit pas la configuration pour en décider : le backend a déjà tranché au
+  moment de l'alerte, canal activé **et** heures creuses comprises. Une seule
+  décision, prise à un seul endroit, donc aucun risque que le son se déclenche
+  pour une appli dont le canal est coupé ou pendant une plage de silence
+  (helper `isChannelNotified` dans `packages/shared-types`)
 - `email` : SMTP (Nodemailer), destinataires configurés dans
   `AppConfig.alertChannels.email.recipients`
 - `sms` : passerelle SMS existante (celle déjà utilisée par distribcard),
