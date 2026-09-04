@@ -14,7 +14,8 @@ import { createHash } from 'node:crypto';
  *
  * La clé est l'empreinte du token présenté : chaque agent dispose de son propre
  * quota, et un token compromis ne peut pas épuiser celui des autres. Le repli
- * sur l'IP couvre les requêtes sans token (interface d'administration).
+ * sur l'IP couvre les requêtes sans token (interface d'administration), dont
+ * les tentatives de connexion.
  */
 @Injectable()
 export class AgentAwareThrottlerGuard extends ThrottlerGuard {
@@ -31,7 +32,18 @@ export class AgentAwareThrottlerGuard extends ThrottlerGuard {
       }
     }
 
-    const forwarded = (request['ips'] as string[] | undefined) ?? [];
-    return `ip:${forwarded[0] ?? (request['ip'] as string | undefined) ?? 'inconnue'}`;
+    // `request.ip`, et surtout pas `request.ips[0]`.
+    //
+    // Express expose dans `ips` la chaîne `X-Forwarded-For` entière, du client
+    // vers le proxy le plus proche : `ips[0]` est donc la valeur **annoncée par
+    // le client**, qu'il forge comme il veut. S'en servir comme clé de quota
+    // laissait contourner la limite de tentatives de connexion en changeant
+    // d'en-tête à chaque essai — la protection contre la force brute
+    // (docs/SECURITY.md A07) devenait inopérante.
+    //
+    // `request.ip` est calculé par Express en fonction de `trust proxy` : avec
+    // un seul reverse proxy devant l'application, c'est l'adresse que ce proxy
+    // a ajoutée, la seule que le client ne contrôle pas.
+    return `ip:${(request['ip'] as string | undefined) ?? 'inconnue'}`;
   }
 }

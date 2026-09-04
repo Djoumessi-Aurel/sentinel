@@ -1,5 +1,6 @@
 export * from './alerting';
 export * from './application';
+export * from './auth';
 export * from './config';
 export * from './ingestion';
 export * from './log';

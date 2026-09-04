@@ -8,7 +8,6 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
-    "lint": "next lint",
     "test": "node --test \"test/**/*.test.mts\""
   },
   "dependencies": {

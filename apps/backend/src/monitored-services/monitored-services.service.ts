@@ -13,7 +13,7 @@ import type { Prisma } from '@prisma/client';
 
 import { AlertingService } from '../alerting/alerting.service';
 import { RulesService } from '../alerting/rules.service';
-import { SYSTEM_USER, type RequestUser } from '../common/auth/request-user';
+import type { RequestUser } from '../common/auth/request-user';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { INTERNAL_EVENTS, type ServiceStateChangedEvent } from '../events';
 import { SettingsService } from '../settings/settings.service';

@@ -8,7 +8,7 @@ import { AlertingModule } from './alerting/alerting.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { AppConfigModule } from './common/config/config.module';
 import { AgentAwareThrottlerGuard } from './common/throttler/agent-aware-throttler.guard';
-import { AuthModule } from './common/auth/auth.module';
+import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthController } from './health.controller';
 import { IngestionModule } from './ingestion/ingestion.module';

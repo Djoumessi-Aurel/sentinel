@@ -20,6 +20,8 @@ import {
   type ServiceStateChangedEvent,
 } from '../events';
 import { HealthService } from '../alerting/health.service';
+import { AuthService } from '../auth/auth.service';
+import { SESSION_COOKIE } from '../common/auth/auth.guard';
 
 /** Le payload d'abonnement vient du navigateur : il est validé comme tout le reste. */
 const joinSchema = z.object({ applicationId: z.string().uuid() });
@@ -39,10 +41,43 @@ export class RealtimeGateway implements OnGatewayConnection {
   @WebSocketServer() private server!: Server;
   private readonly logger = new Logger(RealtimeGateway.name);
 
-  constructor(private readonly health: HealthService) {}
+  constructor(
+    private readonly health: HealthService,
+    private readonly auth: AuthService,
+  ) {}
 
-  handleConnection(client: Socket): void {
-    this.logger.debug(`Client temps réel connecté : ${client.id}`);
+  /**
+   * Le flux temps réel transporte des lignes de log en clair : il doit être
+   * authentifié au même titre que l'API REST. Sans cela, il suffirait de
+   * connaître l'adresse du serveur pour lire les logs du parc entier, en
+   * contournant toutes les protections posées sur les routes HTTP
+   * (docs/SECURITY.md A01).
+   */
+  async handleConnection(client: Socket): Promise<void> {
+    const token = this.extractSessionCookie(client.handshake.headers.cookie);
+    const user = token ? await this.auth.resolveSession(token) : null;
+
+    if (!user) {
+      this.logger.warn(`Connexion temps réel refusée : session absente ou invalide (${client.id})`);
+      client.disconnect(true);
+      return;
+    }
+
+    client.data.user = user;
+    this.logger.debug(`Client temps réel connecté : ${user.username} (${client.id})`);
+  }
+
+  /** Analyse minimale de l'en-tête Cookie : on ne cherche qu'une valeur. */
+  private extractSessionCookie(header: string | undefined): string | null {
+    if (!header) return null;
+    for (const morceau of header.split(';')) {
+      const separateur = morceau.indexOf('=');
+      if (separateur === -1) continue;
+      if (morceau.slice(0, separateur).trim() === SESSION_COOKIE) {
+        return decodeURIComponent(morceau.slice(separateur + 1).trim());
+      }
+    }
+    return null;
   }
 
   @SubscribeMessage('join')

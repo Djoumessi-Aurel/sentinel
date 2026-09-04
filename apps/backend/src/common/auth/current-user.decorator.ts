@@ -1,13 +1,17 @@
-import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
+import { createParamDecorator, UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 
-import { SYSTEM_USER, type RequestUser } from './request-user';
+import type { RequestUser } from './request-user';
 
 /**
- * `@CurrentUser()` — peuplé par `AuthGuard`. Le repli sur `SYSTEM_USER` couvre
- * les contextes hors HTTP (jobs planifiés, WebSocket) où la requête n'existe pas.
+ * `@CurrentUser()` — peuplé par `AuthGuard`.
+ *
+ * Lève si l'utilisateur est absent plutôt que de retomber sur une valeur par
+ * défaut : une route qui attend un utilisateur et n'en reçoit pas révèle un
+ * garde manquant, et il vaut mieux le découvrir bruyamment.
  */
 export const CurrentUser = createParamDecorator((_data: unknown, context: ExecutionContext): RequestUser => {
-  const request = context.switchToHttp().getRequest<Request>();
-  return request.user ?? SYSTEM_USER;
+  const user = context.switchToHttp().getRequest<Request>().user;
+  if (!user) throw new UnauthorizedException('Authentification requise');
+  return user;
 });

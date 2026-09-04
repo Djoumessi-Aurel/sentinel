@@ -10,13 +10,15 @@ import {
 } from '@sentinel/shared-types';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentUser } from '../common/auth/current-user.decorator';
 import type { RequestUser } from '../common/auth/request-user';
 import { zodBody } from '../common/pipes/zod-validation.pipe';
 import { ApplicationsService } from './applications.service';
 
 @Controller('applications')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class ApplicationsController {
   constructor(private readonly applications: ApplicationsService) {}
 
@@ -40,6 +42,7 @@ export class ApplicationsController {
   }
 
   /** Le token d'agent renvoyé ici n'est plus jamais consultable ensuite. */
+  @Roles('admin')
   @Post()
   create(
     @Body(zodBody(createApplicationSchema)) dto: CreateApplicationDto,
@@ -47,6 +50,8 @@ export class ApplicationsController {
   ): Promise<CreatedApplication> {
     return this.applications.create(dto, user);
   }
+
+  @Roles('admin')
 
   @Patch(':id')
   update(
@@ -56,6 +61,8 @@ export class ApplicationsController {
   ): Promise<Application> {
     return this.applications.update(id, dto, user);
   }
+
+  @Roles('admin')
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -67,6 +74,7 @@ export class ApplicationsController {
    * Émet un nouveau token d'agent. Renvoyé en clair une seule fois, comme à la
    * création : la base ne contient que son empreinte.
    */
+  @Roles('admin')
   @Post(':id/tokens')
   @HttpCode(HttpStatus.CREATED)
   issueToken(@Param('id') id: string): Promise<{ agentToken: string }> {
@@ -77,6 +85,8 @@ export class ApplicationsController {
   listTokens(@Param('id') id: string) {
     return this.applications.listTokens(id);
   }
+
+  @Roles('admin')
 
   @Delete('tokens/:tokenId')
   @HttpCode(HttpStatus.NO_CONTENT)

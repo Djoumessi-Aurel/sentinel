@@ -9,13 +9,15 @@ import {
 } from '@sentinel/shared-types';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentUser } from '../common/auth/current-user.decorator';
 import type { RequestUser } from '../common/auth/request-user';
 import { zodBody } from '../common/pipes/zod-validation.pipe';
 import { MonitoredServicesService } from './monitored-services.service';
 
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class MonitoredServicesController {
   constructor(private readonly services: MonitoredServicesService) {}
 
@@ -29,6 +31,8 @@ export class MonitoredServicesController {
     return this.services.status(appId);
   }
 
+  @Roles('admin')
+
   @Post('applications/:appId/services')
   create(
     @Param('appId') appId: string,
@@ -38,6 +42,8 @@ export class MonitoredServicesController {
     return this.services.create(appId, dto, user);
   }
 
+  @Roles('admin')
+
   @Patch('services/:id')
   update(
     @Param('id') id: string,
@@ -45,6 +51,8 @@ export class MonitoredServicesController {
   ): Promise<MonitoredService> {
     return this.services.update(id, dto);
   }
+
+  @Roles('admin')
 
   @Delete('services/:id')
   @HttpCode(HttpStatus.NO_CONTENT)

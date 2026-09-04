@@ -11,13 +11,15 @@ import {
 } from '@sentinel/shared-types';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentUser } from '../common/auth/current-user.decorator';
 import type { RequestUser } from '../common/auth/request-user';
 import { zodBody } from '../common/pipes/zod-validation.pipe';
 import { SettingsService } from './settings.service';
 
 @Controller('config')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 
@@ -25,6 +27,8 @@ export class SettingsController {
   getGlobal(): Promise<GlobalConfig> {
     return this.settings.getGlobal();
   }
+
+  @Roles('admin')
 
   @Patch('global')
   updateGlobal(
@@ -39,6 +43,8 @@ export class SettingsController {
     return this.settings.getAppConfig(appId);
   }
 
+  @Roles('admin')
+
   @Patch('applications/:appId')
   updateAppConfig(
     @Param('appId') appId: string,
@@ -49,6 +55,7 @@ export class SettingsController {
   }
 
   /** Écrase la config des applis cochées avec la config globale courante. */
+  @Roles('admin')
   @Post('generalize')
   async generalize(
     @Body(zodBody(generalizeConfigSchema)) dto: GeneralizeConfigDto,

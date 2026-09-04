@@ -1,13 +1,26 @@
+import type { CurrentUser, UserRole } from '@sentinel/shared-types';
+
 /**
- * Utilisateur porté par la requête. En Phase 1-3 il est factice, mais sa forme
- * est déjà celle de la Phase 4 : les contrôleurs peuvent écrire
- * `@CurrentUser() user: RequestUser` dès maintenant, sans changement de
- * signature quand l'authentification réelle arrivera (docs/AUTH.md §1).
+ * Utilisateur porté par la requête, peuplé par `AuthGuard`.
+ *
+ * Le type n'a pas changé de forme depuis la Phase 1, où il était rempli avec un
+ * utilisateur factice : les contrôleurs écrivaient déjà `@CurrentUser() user`,
+ * et aucun n'a eu à être modifié quand l'authentification réelle est arrivée
+ * (docs/AUTH.md §1).
  */
 export interface RequestUser {
+  /** `sAMAccountName`, ou nom du compte technique. */
   id: string;
-  role: 'admin' | 'viewer';
+  username: string;
+  displayName: string;
+  role: UserRole;
+  builtin: boolean;
 }
 
-/** Utilisateur utilisé tant que le module d'authentification n'existe pas. */
-export const SYSTEM_USER: RequestUser = { id: 'system', role: 'admin' };
+export const toRequestUser = (user: CurrentUser): RequestUser => ({
+  id: user.username,
+  username: user.username,
+  displayName: user.displayName,
+  role: user.role,
+  builtin: user.builtin,
+});

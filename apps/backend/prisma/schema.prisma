@@ -191,6 +191,36 @@ model IngestionAgentToken {
   @@map("ingestion_agent_tokens")
 }
 
+/**
+ * Utilisateur autorisé à accéder à Sentinel.
+ *
+ * **Aucun mot de passe n'est stocké ici, et c'est délibéré** : l'authentification
+ * est déléguée à l'Active Directory (docs/AUTH.md). Cette table ne répond qu'à
+ * une question — cette personne a-t-elle le droit d'entrer, et avec quel rôle.
+ * Un compte AD ne suffit donc pas : il faut aussi avoir été ajouté ici.
+ *
+ * Les deux comptes techniques (`sentineluser`, `sentineladmin`) ne figurent
+ * jamais dans cette table : ils sont définis par la configuration du serveur.
+ */
+model User {
+  id          String    @id @default(uuid())
+  /** `sAMAccountName` de l'Active Directory, sans le domaine. */
+  username    String    @unique @db.VarChar(190)
+  displayName String    @db.VarChar(190)
+  email       String?   @db.VarChar(255)
+  role        String    @default("viewer") @db.VarChar(16)
+  /** Un compte désactivé conserve son historique mais ne peut plus se connecter. */
+  enabled     Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?   @db.VarChar(64)
+  updatedBy   String?   @db.VarChar(64)
+
+  @@index([enabled])
+  @@map("users")
+}
+
 // Adaptateur de développement du LogStore (docs/DECISIONS.md D002).
 // En production, les logs vont dans OpenSearch et cette table reste vide.
 model LogEntry {

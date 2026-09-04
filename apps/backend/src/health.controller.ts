@@ -1,6 +1,8 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 
+import { Public } from './common/auth/public.decorator';
+
 import { ENV } from './common/config/config.module';
 import type { Env } from './common/config/env';
 import { PrismaService } from './common/prisma/prisma.service';
@@ -13,6 +15,7 @@ import { LOG_STORE, type LogStore } from './log-store/log-store.interface';
  * URL de base, ni détail d'erreur (docs/SECURITY.md A05).
  */
 @Controller('health')
+@Public()
 @SkipThrottle()
 export class HealthController {
   constructor(

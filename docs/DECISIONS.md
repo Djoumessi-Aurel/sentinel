@@ -190,3 +190,10 @@ dépôt qui mentionnait déjà « Next.js 16+ ».
 ### Conséquences
 Aucune exception d'audit n'a été nécessaire : la vulnérabilité est corrigée, pas
 contournée. React 19 est requis par Next 16, ce qui était déjà le cas.
+
+Effet de bord découvert après coup : Next 16 supprime la commande `next lint`,
+seul « lint » que le dépôt possédait. Aucun workspace n'a de configuration
+ESLint propre, si bien que le script était devenu un échec pur et simple. Il a
+été retiré plutôt que laissé cassé : la vérification statique du dépôt repose
+sur TypeScript (`npm run typecheck`, en mode strict sur tous les workspaces).
+Ajouter ESLint reste possible, ce serait une décision à part entière.

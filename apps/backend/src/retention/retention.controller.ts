@@ -1,10 +1,12 @@
 import { Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { RetentionService, type PurgeReport } from './retention.service';
 
 @Controller('retention')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class RetentionController {
   constructor(private readonly retention: RetentionService) {}
 
@@ -15,6 +17,7 @@ export class RetentionController {
    * réglage ne serait visible que le lendemain, et on ne saurait pas s'il a
    * réellement été pris en compte.
    */
+  @Roles('admin')
   @Post('purge')
   @HttpCode(HttpStatus.OK)
   async purge(): Promise<{ status: 'ok' | 'busy'; report: PurgeReport | null }> {

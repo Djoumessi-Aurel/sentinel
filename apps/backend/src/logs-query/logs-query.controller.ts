@@ -2,6 +2,8 @@ import { Controller, Get, Inject, Query, UseGuards } from '@nestjs/common';
 import { searchLogsQuerySchema, type Paginated, type SearchLogsQuery, type StoredLogEntry } from '@sentinel/shared-types';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { zodBody } from '../common/pipes/zod-validation.pipe';
 import { LOG_STORE, type LogStore } from '../log-store/log-store.interface';
 
@@ -11,7 +13,7 @@ import { LOG_STORE, type LogStore } from '../log-store/log-store.interface';
  * soient dans OpenSearch ou dans MySQL.
  */
 @Controller('logs')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class LogsQueryController {
   constructor(@Inject(LOG_STORE) private readonly logStore: LogStore) {}
 

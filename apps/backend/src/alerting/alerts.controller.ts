@@ -9,12 +9,14 @@ import {
 } from '@sentinel/shared-types';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { zodBody } from '../common/pipes/zod-validation.pipe';
 import { AlertingService } from './alerting.service';
 import { ChannelTestService } from './channel-test.service';
 
 @Controller('alerts')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class AlertsController {
   constructor(
     private readonly alerting: AlertingService,
@@ -31,6 +33,7 @@ export class AlertsController {
    * configuration technique (SMTP, passerelle SMS) fonctionne sans attendre un
    * incident réel (docs/ALERTING.md §6).
    */
+  @Roles('admin')
   @Post('test-channel')
   @HttpCode(HttpStatus.OK)
   testChannel(@Body(zodBody(testChannelSchema)) dto: TestChannelDto): Promise<{ status: string; detail?: string }> {
@@ -41,6 +44,8 @@ export class AlertsController {
   get(@Param('id') id: string): Promise<AlertEvent> {
     return this.alerting.get(id);
   }
+
+  @Roles('admin')
 
   @Patch(':id/resolve')
   resolve(@Param('id') id: string): Promise<AlertEvent> {

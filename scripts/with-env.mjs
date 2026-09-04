@@ -57,10 +57,22 @@ if (!command) {
   process.exit(1);
 }
 
-// `shell: true` est nécessaire sous Windows pour résoudre les binaires
-// `node_modules/.bin` (`.cmd`). Les arguments viennent des scripts npm du dépôt,
-// jamais d'une entrée utilisateur.
-const child = spawn(command, args, { stdio: 'inherit', shell: true });
+// `shell: true` uniquement quand il est indispensable.
+//
+// Sous Windows, les binaires de `node_modules/.bin` sont des `.cmd`, que Node
+// refuse de lancer sans shell. Mais passer par un shell concatène les arguments
+// dans une ligne de commande au lieu de les transmettre tels quels : une valeur
+// contenant `&`, `(` ou `|` s'y ferait interpréter. Or certains scripts
+// reçoivent des arguments saisis à la main — un fragment de recherche pour
+// `test-ldap.mjs`, par exemple.
+//
+// Ces scripts-là sont tous lancés par `node`, qui n'a pas besoin de shell : on
+// l'invoque directement, et leurs arguments ne traversent aucune interprétation.
+const besoinDeShell = command !== 'node' && command !== process.execPath;
+const child = spawn(besoinDeShell ? command : process.execPath, args, {
+  stdio: 'inherit',
+  shell: besoinDeShell,
+});
 child.on('exit', (code, signal) => process.exit(signal ? 1 : (code ?? 0)));
 child.on('error', (error) => {
   console.error(`Échec du lancement de « ${command} » : ${error.message}`);

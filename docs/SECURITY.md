@@ -100,14 +100,50 @@ que l'appelant y a droit (référence directe non sécurisée).
 
 ## A07 — Défaillances d'identification et d'authentification
 
-- Phase 1-3 : il n'y a pas d'authentification utilisateur, **et c'est un risque
-  assumé et documenté** — l'application ne doit donc pas être exposée hors du
-  réseau interne tant que la Phase 4 n'est pas livrée. Ce point doit être
-  rappelé à toute mise en service anticipée.
-- Phase 4 : 2FA TOTP, limitation des tentatives, codes de récupération à usage
-  unique (`docs/AUTH.md §2.4`).
+- L'authentification s'appuie sur l'Active Directory : **aucun mot de passe
+  d'utilisateur n'est stocké**, Sentinel se contente de présenter les
+  identifiants saisis à l'annuaire (`docs/AUTH.md`).
+- Deux comptes techniques font exception (`sentineluser`, `sentineladmin`).
+  Leurs mots de passe sont **hachés** avec `scrypt`, jamais chiffrés : on n'a
+  jamais besoin de les relire, seulement de les vérifier.
+- Un identifiant valide en AD ne suffit pas : le compte doit avoir été déclaré
+  utilisateur de Sentinel et rester actif. Cette vérification passe **avant**
+  l'appel à l'annuaire.
+- Le message de refus est le même pour un mot de passe faux, un compte inconnu
+  et un compte désactivé : distinguer les cas révélerait quels identifiants
+  existent.
+- Limitation des tentatives de connexion : 5 par minute et par adresse.
 - Les tokens d'agent sont révocables (`IngestionAgentToken.revokedAt`) : un
   serveur décommissionné se coupe sans redéploiement.
+- 2FA TOTP : prévue, pas encore livrée (`docs/AUTH.md §2.4`).
+
+### Piège rencontré : `trust proxy` et le contournement de la limitation
+
+La limitation des tentatives compte par adresse de client. Reste à savoir d'où
+vient cette adresse.
+
+L'application a d'abord été configurée avec `app.set('trust proxy', 1)`, et la
+clé de quota dérivée de `request.ips[0]`. Les deux étaient faux, et la
+combinaison rendait la protection **entièrement inopérante** : huit tentatives
+avec un mot de passe faux passaient sans jamais être bloquées, à condition
+d'envoyer un `X-Forwarded-For` différent à chaque essai.
+
+Deux raisons distinctes :
+
+- `request.ips[0]` est l'entrée **la plus à gauche** de `X-Forwarded-For`,
+  c'est-à-dire celle que le client annonce lui-même. Elle n'est jamais digne de
+  confiance.
+- `trust proxy: 1` fait confiance au pair immédiat **quel qu'il soit**. En accès
+  direct, le client est donc pris pour le proxy et choisit l'adresse qu'on lui
+  attribue — `request.ip` devient tout aussi falsifiable.
+
+Correctif : la clé de quota utilise `request.ip`, et la confiance n'est accordée
+qu'aux adresses explicitement déclarées dans `TRUST_PROXY` (vide par défaut,
+`loopback` derrière un nginx local). Un nombre de sauts est refusé au démarrage,
+pour que le réglage dangereux ne puisse pas revenir par inadvertance.
+
+Le scénario `scripts/qa-auth.mjs` vérifie les deux comportements : le blocage
+après cinq tentatives, et le fait qu'un `X-Forwarded-For` forgé ne le lève pas.
 
 ## A08 — Défaut d'intégrité des données et du logiciel
 

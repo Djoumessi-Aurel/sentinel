@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { INGESTION_LIMITS } from '@sentinel/shared-types';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
@@ -23,6 +24,23 @@ async function bootstrap(): Promise<void> {
   // sert que du JSON, la CSP se règle sur le frontend qui, lui, sert du HTML.
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'same-site' } }));
   app.disable('x-powered-by');
+
+  // La session voyage dans un cookie HttpOnly, illisible par le JavaScript de
+  // la page (docs/SECURITY.md A02).
+  app.use(cookieParser());
+
+  // `trust proxy` : à qui accorde-t-on le droit de renseigner l'adresse du
+  // client via `X-Forwarded-For` ?
+  //
+  // Uniquement aux adresses explicitement déclarées. Un simple nombre de sauts
+  // ferait confiance au pair immédiat quel qu'il soit : en accès direct, le
+  // client serait lui-même pris pour le proxy et se verrait attribuer l'adresse
+  // qu'il annonce. Il lui suffirait d'en changer à chaque essai pour échapper à
+  // la limitation des tentatives de connexion (docs/SECURITY.md A07).
+  //
+  // Sans proxy déclaré — le cas en développement — l'en-tête est ignoré et
+  // `request.ip` reste l'adresse réelle de la connexion TCP.
+  app.set('trust proxy', env.TRUST_PROXY === '' ? false : env.TRUST_PROXY);
 
   // Corps de requête borné : les routes d'ingestion sont la principale surface
   // de déni de service du backend (docs/SECURITY.md A04).
@@ -55,6 +73,14 @@ async function bootstrap(): Promise<void> {
 
   logger.log(`Sentinel démarré sur http://localhost:${env.PORT}/api (environnement : ${env.NODE_ENV})`);
   logger.log(`Origines autorisées : ${env.CORS_ORIGINS.join(', ')}`);
+  logger.log(`Authentification : ${env.AUTH_MODE === 'ldap' ? "Active Directory (LDAP)" : 'MODE DÉVELOPPEMENT'}`);
+
+  if (env.AUTH_MODE === 'dev') {
+    logger.warn(
+      "AUTH_MODE=dev : les mots de passe ne sont PAS vérifiés. Seule l'appartenance à la liste " +
+        'des utilisateurs est contrôlée. À ne jamais utiliser hors développement.',
+    );
+  }
 }
 
 void bootstrap();

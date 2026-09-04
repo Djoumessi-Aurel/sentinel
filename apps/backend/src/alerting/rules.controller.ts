@@ -9,13 +9,15 @@ import {
 } from '@sentinel/shared-types';
 
 import { AuthGuard } from '../common/auth/auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
+import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentUser } from '../common/auth/current-user.decorator';
 import type { RequestUser } from '../common/auth/request-user';
 import { zodBody } from '../common/pipes/zod-validation.pipe';
 import { RulesService } from './rules.service';
 
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class RulesController {
   constructor(private readonly rules: RulesService) {}
 
@@ -29,6 +31,8 @@ export class RulesController {
     return this.rules.list(appId);
   }
 
+  @Roles('admin')
+
   @Post('applications/:appId/rules')
   create(
     @Param('appId') appId: string,
@@ -37,6 +41,8 @@ export class RulesController {
   ): Promise<AnalyzerRule> {
     return this.rules.create(appId, dto, user);
   }
+
+  @Roles('admin')
 
   @Patch('rules/:id')
   update(
@@ -47,6 +53,8 @@ export class RulesController {
     return this.rules.update(id, dto, user);
   }
 
+  @Roles('admin')
+
   @Delete('rules/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string): Promise<void> {
@@ -54,6 +62,7 @@ export class RulesController {
   }
 
   /** Évalue la règle immédiatement, sans créer d'alerte ni notifier. */
+  @Roles('admin')
   @Post('rules/:id/test')
   @HttpCode(HttpStatus.OK)
   test(@Param('id') id: string): Promise<AnalyzerResult> {
