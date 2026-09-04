@@ -84,16 +84,32 @@ automatique est appliquée par le navigateur**, pas par l'application. Un
 aucune API permettant de s'en affranchir. On la contourne de la seule manière
 possible :
 
-1. tentative de déblocage au montage — elle réussit si le navigateur autorise
-   déjà le son pour ce site ;
-2. sinon, `armOnFirstGesture` écoute discrètement le **premier geste, quel qu'il
-   soit** (clic, touche, contact tactile) et débloque le son à ce moment-là.
-   Aucun bouton dédié, aucune question posée : ouvrir un écran et cliquer
-   n'importe où suffit ;
-3. tant que le son reste bloqué, un indicateur discret le signale. Il n'appelle
-   aucune action — c'est un état, pas une demande — mais une surveillance
-   sonore qui échouerait en silence serait exactement ce que cette application
-   est censée empêcher (`CLAUDE.md §5.4`).
+1. tentative de déblocage au montage, **synchrone et sans attente** — elle
+   réussit si le navigateur autorise déjà le son pour ce site ;
+2. `armOnFirstGesture` écoute le **premier geste, quel qu'il soit** (clic,
+   touche, contact tactile) et débloque le son à ce moment-là. Aucun bouton
+   dédié, aucune question posée ;
+3. tant que le son reste bloqué, un indicateur discret le signale — et cliquer
+   dessus est lui-même le geste qui l'active. Une surveillance sonore qui
+   échouerait en silence serait exactement ce que cette application est censée
+   empêcher (`CLAUDE.md §5.4`).
+
+### Deux pièges, tous deux rencontrés en conditions réelles
+
+**Ne jamais attendre `resume()` hors d'un geste utilisateur.** La promesse peut
+ne jamais se résoudre. Une première version enchaînait la pose des écouteurs
+derrière ce `await` : les écouteurs n'étaient alors jamais posés, plus aucun clic
+ne pouvait débloquer le son, et l'indicateur restait affiché indéfiniment. Les
+écouteurs sont désormais posés **avant** toute tentative, de façon synchrone.
+
+**Ne pas conserver un contexte créé hors geste.** Chrome le marque comme bloqué,
+et le `resume()` d'un clic ultérieur ne le réveille pas de façon fiable — d'où
+le symptôme troublant d'un second onglet qui fonctionnait alors que le premier
+restait muet. Un contexte suspendu créé hors geste est donc refermé, et un
+contexte neuf est créé au premier geste.
+
+Ces deux comportements sont verrouillés par `test/alert-siren.test.mts`, dont un
+cas simule un `resume()` qui ne se résout jamais.
 
 **Pour un écran d'open space**, où personne n'interagit jamais avec la page, le
 plus simple est d'autoriser le son au niveau du navigateur, une fois pour

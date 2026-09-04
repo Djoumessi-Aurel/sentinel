@@ -35,22 +35,22 @@ export function AlertCenter() {
 
   useEffect(() => {
     const siren = getSiren();
-    let detacher: (() => void) | undefined;
-    let demonte = false;
 
-    // Première tentative immédiate : elle réussit si le navigateur autorise déjà
-    // le son pour ce site — c'est le cas d'un poste réglé une fois pour toutes,
-    // typiquement l'écran de l'open space (voir docs/FRONTEND.md §3.1).
-    void siren.unlock().then((state) => {
-      if (demonte) return;
-      setSirenState(state);
-      // Sinon on s'arme sur le premier geste, sans rien demander à l'utilisateur.
-      if (state !== 'ready') detacher = siren.armOnFirstGesture(setSirenState);
-    });
+    // L'ordre compte. Les écouteurs de geste sont posés **d'abord** et de façon
+    // synchrone : les enchaîner derrière la tentative de déblocage les rendrait
+    // tributaires de sa résolution, et un `resume()` resté en attente suffirait
+    // à ce qu'aucun clic ne débloque plus jamais le son.
+    const desarmer = siren.armOnFirstGesture();
+    const desabonner = siren.onStateChange(setSirenState);
+
+    // Tentative immédiate, non bloquante : elle réussit si le navigateur
+    // autorise déjà le son pour ce site — le cas d'un poste réglé une fois pour
+    // toutes, typiquement l'écran de l'open space (docs/FRONTEND.md §3.1).
+    setSirenState(siren.tryUnlock());
 
     return () => {
-      demonte = true;
-      detacher?.();
+      desarmer();
+      desabonner();
     };
   }, []);
 
@@ -90,9 +90,15 @@ export function AlertCenter() {
         volontairement discret : ce n'est pas une action à mener, juste un état.
       */}
       {silenceForce && (
-        <div className="border-b border-slate-200 bg-slate-100 px-6 py-1 text-center text-xs text-slate-500">
-          Son en attente de la première interaction avec la page — un clic quelconque suffit à l’activer.
-        </div>
+        <button
+          type="button"
+          // Cliquer sur l'indicateur est lui-même le geste qui débloque le son :
+          // l'utilisateur qui le remarque n'a rien d'autre à chercher.
+          onClick={() => setSirenState(getSiren().tryUnlock(true))}
+          className="w-full border-b border-slate-200 bg-slate-100 px-6 py-1 text-center text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+        >
+          Son en attente d’une première interaction avec la page — cliquer n’importe où, ou ici, l’active.
+        </button>
       )}
 
       {/* Bandeau des alertes reçues en direct, visible sur toutes les pages. */}

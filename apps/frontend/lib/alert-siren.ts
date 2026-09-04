@@ -14,6 +14,19 @@ import type { AlertSeverity } from '@sentinel/shared-types';
  * Tout est synthétisé par l'API Web Audio : aucun fichier à héberger, aucune
  * requête réseau, et le son reste disponible même si le backend tombe — ce qui
  * est précisément le moment où on en a besoin.
+ *
+ * ## Politique de lecture automatique
+ *
+ * Les navigateurs interdisent de démarrer un son sans interaction préalable, et
+ * aucune API ne permet de s'en affranchir. Deux pièges, tous deux rencontrés :
+ *
+ * 1. **Ne jamais attendre `resume()` hors d'un geste utilisateur.** La promesse
+ *    peut ne jamais se résoudre. Tout code enchaîné derrière — y compris la
+ *    pose des écouteurs de geste — ne s'exécute alors jamais, et plus aucun clic
+ *    ne peut débloquer quoi que ce soit.
+ * 2. **Ne pas conserver un contexte créé hors geste.** Chrome le marque comme
+ *    bloqué, et le `resume()` d'un clic ultérieur ne le réveille pas toujours.
+ *    On le referme donc et on en recrée un propre au premier geste.
  */
 
 export type SirenState =
@@ -27,7 +40,7 @@ export type SirenState =
 interface Pattern {
   /** Durée totale, en secondes. */
   readonly duration: number;
-  /** Durée d'un tonalité, en secondes. */
+  /** Durée d'une tonalité, en secondes. */
   readonly step: number;
   /** Les deux fréquences alternées, en hertz. */
   readonly tones: readonly [number, number];
@@ -43,9 +56,14 @@ const PATTERNS: Record<AlertSeverity, Pattern> = {
   warning: { duration: 2.2, step: 0.5, tones: [660, 550], gain: 0.28, wave: 'triangle' },
 };
 
+/** Gestes considérés comme une interaction par les navigateurs. */
+const GESTURES = ['pointerdown', 'mousedown', 'keydown', 'touchstart'] as const;
+
 export class AlertSiren {
   private context: AudioContext | null = null;
   private stopCurrent: (() => void) | null = null;
+  private readonly observers = new Set<(state: SirenState) => void>();
+  private detachStateChange: (() => void) | null = null;
 
   /** Le navigateur sait-il produire du son ? */
   get supported(): boolean {
@@ -58,24 +76,111 @@ export class AlertSiren {
     return this.context.state === 'running' ? 'ready' : 'blocked';
   }
 
+  /** S'abonner aux changements d'état, pour que l'interface reflète la réalité. */
+  onStateChange(observer: (state: SirenState) => void): () => void {
+    this.observers.add(observer);
+    return () => this.observers.delete(observer);
+  }
+
+  private notify(): void {
+    const state = this.state;
+    for (const observer of this.observers) observer(state);
+  }
+
   /**
-   * Autorise le son. **Doit être appelée depuis un gestionnaire d'événement
-   * utilisateur** : sans geste préalable, tous les navigateurs suspendent le
-   * contexte audio, et la sirène échouerait en silence — le pire comportement
-   * possible pour un outil de supervision.
+   * Tente de débloquer le son. **Synchrone et sans attente** : rien n'est
+   * enchaîné derrière une promesse qui pourrait ne jamais se résoudre.
+   *
+   * @param fromGesture true si l'appel provient d'un vrai geste utilisateur.
    */
-  async unlock(): Promise<SirenState> {
+  tryUnlock(fromGesture = false): SirenState {
     if (!this.supported) return 'unavailable';
 
-    this.context ??= new AudioContext();
-    if (this.context.state !== 'running') {
-      try {
-        await this.context.resume();
-      } catch {
-        return 'blocked';
-      }
+    if (!this.context) {
+      this.context = new AudioContext();
+      // Chrome peut réveiller le contexte de lui-même dès que la page gagne une
+      // interaction : on écoute la transition plutôt que de la deviner.
+      const onChange = () => this.notify();
+      this.context.addEventListener('statechange', onChange);
+      this.detachStateChange = () => this.context?.removeEventListener('statechange', onChange);
     }
-    return this.context.state === 'running' ? 'ready' : 'blocked';
+
+    if (this.context.state === 'running') return 'ready';
+
+    if (!fromGesture) {
+      // Contexte suspendu créé hors geste : Chrome le considère bloqué, et le
+      // `resume()` d'un clic ultérieur ne le réveille pas de façon fiable. On
+      // s'en débarrasse pour repartir d'un contexte neuf au premier geste.
+      this.discardContext();
+      return 'blocked';
+    }
+
+    // Sous geste utilisateur : `resume()` est appelé sans `await` préalable,
+    // afin de rester dans la tâche qui porte l'interaction.
+    void this.context.resume().catch(() => undefined);
+    this.primeWithSilentBuffer();
+    return this.state;
+  }
+
+  /**
+   * Joue un échantillon muet. Recette classique de déblocage : certains
+   * navigateurs ne basculent réellement le contexte en lecture qu'après une
+   * première source effectivement démarrée.
+   */
+  private primeWithSilentBuffer(): void {
+    if (!this.context) return;
+    try {
+      const buffer = this.context.createBuffer(1, 1, this.context.sampleRate);
+      const source = this.context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.context.destination);
+      source.start(0);
+    } catch {
+      // Sans effet si le navigateur refuse : la sirène restera simplement bloquée.
+    }
+  }
+
+  private discardContext(): void {
+    this.detachStateChange?.();
+    this.detachStateChange = null;
+    const context = this.context;
+    this.context = null;
+    void context?.close().catch(() => undefined);
+  }
+
+  /**
+   * Débloque le son au **premier geste de l'utilisateur**, quel qu'il soit.
+   *
+   * Les écouteurs sont posés **immédiatement et de façon synchrone** : les
+   * enchaîner derrière une promesse les rendrait dépendants de sa résolution,
+   * et un `resume()` resté en attente suffirait à ce qu'aucun clic ne débloque
+   * jamais rien.
+   *
+   * Retourne une fonction de désinscription.
+   */
+  armOnFirstGesture(onState?: (state: SirenState) => void): () => void {
+    if (typeof document === 'undefined') return () => undefined;
+
+    let detached = false;
+    const detach = () => {
+      if (detached) return;
+      detached = true;
+      for (const name of GESTURES) document.removeEventListener(name, handle, true);
+    };
+
+    const handle = () => {
+      const state = this.tryUnlock(true);
+      onState?.(state);
+      this.notify();
+      // On reste à l'écoute tant que ce n'est pas gagné : un geste peut survenir
+      // trop tôt, ou le navigateur exiger davantage qu'une interaction.
+      if (state === 'ready') detach();
+    };
+
+    // Phase de capture : le geste est vu même si un composant interrompt la
+    // propagation de l'événement.
+    for (const name of GESTURES) document.addEventListener(name, handle, true);
+    return detach;
   }
 
   /** Émet la sirène correspondant à la gravité. Sans effet si le son est bloqué. */
@@ -137,48 +242,7 @@ export class AlertSiren {
     return true;
   }
 
-  /**
-   * Débloque le son au **premier geste de l'utilisateur**, quel qu'il soit.
-   *
-   * Aucune autorisation ne peut être accordée depuis le code : la politique de
-   * lecture automatique est appliquée par le navigateur lui-même. En revanche,
-   * rien n'oblige à demander un clic *dédié* — n'importe quelle interaction
-   * suffit. On écoute donc discrètement le premier clic, appui de touche ou
-   * contact tactile, et le son s'active sans que l'opérateur ait rien à faire
-   * de particulier.
-   *
-   * Retourne une fonction de désinscription.
-   */
-  armOnFirstGesture(onState: (state: SirenState) => void): () => void {
-    if (typeof document === 'undefined' || this.state === 'ready') return () => undefined;
-
-    const evenements = ['pointerdown', 'keydown', 'touchstart'] as const;
-    let termine = false;
-
-    const detacher = () => {
-      for (const nom of evenements) document.removeEventListener(nom, gerer, true);
-    };
-
-    const gerer = () => {
-      if (termine) return;
-      void this.unlock().then((state) => {
-        onState(state);
-        // Tant que le navigateur refuse, on reste à l'écoute : un geste peut
-        // survenir trop tôt (pendant le chargement) et échouer.
-        if (state === 'ready') {
-          termine = true;
-          detacher();
-        }
-      });
-    };
-
-    // En phase de capture : le geste est intercepté même si un composant
-    // interrompt la propagation de l'événement.
-    for (const nom of evenements) document.addEventListener(nom, gerer, true);
-    return detacher;
-  }
-
-  /** Coupe la sirène en cours (bouton « Couper le son »). */
+  /** Coupe la sirène en cours (bouton « Couper la sirène »). */
   stop(): void {
     this.stopCurrent?.();
   }
