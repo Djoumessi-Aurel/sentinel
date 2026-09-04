@@ -337,6 +337,8 @@ distinguerait d'un clic malheureux. Un compte désactivé conserve son historiqu
 Un code TOTP à six chiffres, renouvelé toutes les trente secondes, compatible avec les applications
 d'authentification courantes.
 
+![Appairage de la double authentification](diagrammes/10-sequence-appairage-2fa.png){width=15cm}
+
 L'algorithme de la RFC 6238 est **implémenté dans le dépôt** plutôt qu'emprunté à une bibliothèque :
 il tient en une trentaine de lignes utiles, et la RFC publie des vecteurs de test qui en vérifient
 l'exactitude de bout en bout. Une implémentation qu'on peut prouver juste vaut mieux qu'une
@@ -351,6 +353,10 @@ passe des comptes techniques.
 L'appairage n'active rien tant qu'un premier code correct ne l'a pas confirmé. Sans cette étape,
 quelqu'un qui scanne mal son QR — ou dont le téléphone est à l'heure d'un autre fuseau — se
 retrouverait enfermé dehors à sa connexion suivante, sans avoir rien fait de mal.
+
+La confirmation délivre dix **codes de récupération** à usage unique, affichés une seule fois. Ils
+répondent au téléphone perdu : sans eux, la seule issue serait d'appeler un administrateur — et si
+la personne concernée *est* le dernier administrateur, il n'y en aurait aucune.
 
 Le point qui a demandé le plus de soin est l'interrupteur global. **Imposer la double
 authentification n'appaire personne** : le jour où on l'active, aucun compte ne l'a configurée.

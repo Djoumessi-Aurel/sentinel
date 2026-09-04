@@ -2,7 +2,7 @@
 
 import type { AlertSeverity } from '@sentinel/shared-types';
 
-import { PATTERNS, renderSilence, renderSiren } from './siren-sound.ts';
+import { SOURCES_SIRENE } from './siren-sound.ts';
 
 /**
  * Sirène d'alerte.
@@ -90,14 +90,34 @@ export class AlertSiren {
     this.element ??= new Audio();
     this.element.preload = 'auto';
 
-    // Synthèse directe : synchrone, sans contexte audio, donc sans le plafond
-    // de Chromium qui faisait rester la préparation en attente indéfiniment.
-    for (const severity of Object.keys(PATTERNS) as AlertSeverity[]) {
-      if (!this.sources.has(severity)) {
-        this.sources.set(severity, URL.createObjectURL(renderSiren(severity)));
-      }
+    // Fichiers `.wav` servis par le site, et non plus des URL `blob:` produites
+    // à la volée.
+    //
+    // Le son était auparavant synthétisé dans le navigateur à chaque
+    // chargement. Cela fonctionnait, mais chaque page repartait de zéro et le
+    // navigateur ne voyait qu'une ressource éphémère, sans rapport visible avec
+    // le site. Un fichier servi est mis en cache, préchargé, et compte comme une
+    // lecture du site pour l'indice d'engagement média que Chromium utilise
+    // pour décider d'autoriser une lecture spontanée (docs/FRONTEND.md §3.1).
+    //
+    // Les fichiers sont produits par `scripts/generer-sons.mjs`, qui appelle le
+    // même code de synthèse : il n'existe toujours qu'une seule définition du
+    // signal, et les tests continuent de porter dessus.
+    for (const [severity, url] of Object.entries(SOURCES_SIRENE.alertes)) {
+      this.sources.set(severity as AlertSeverity, url);
     }
-    this.silenceUrl ??= URL.createObjectURL(renderSilence());
+    this.silenceUrl ??= SOURCES_SIRENE.silence;
+
+    // Mise en cache anticipée.
+    //
+    // Les sons vivaient auparavant en mémoire : ils partaient instantanément.
+    // Servis en fichiers, ils seraient sinon téléchargés au moment précis de
+    // l'alerte — soit le pire moment pour attendre le réseau. On les demande
+    // donc dès la préparation, sans bloquer : un échec ici n'empêche rien, la
+    // lecture les redemandera.
+    for (const url of Object.values(SOURCES_SIRENE.alertes)) {
+      void fetch(url, { cache: 'force-cache' }).catch(() => undefined);
+    }
 
     return this.probe();
   }

@@ -122,6 +122,22 @@ export function encodeWav(samples: Float32Array, sampleRate = SAMPLE_RATE): Blob
   return new Blob([octets], { type: 'audio/wav' });
 }
 
+/**
+ * Emplacement des fichiers servis, produits par `scripts/generer-sons.mjs`.
+ *
+ * Déclaré ici, à côté de la synthèse : le générateur et l'interface lisent la
+ * même définition. Deux listes de noms de fichiers finiraient par diverger, et
+ * l'écart ne se verrait qu'au moment où plus aucun son ne sortirait.
+ */
+export const SOURCES_SIRENE = {
+  alertes: {
+    critical: '/sons/alerte-critique.wav',
+    warning: '/sons/alerte-avertissement.wav',
+  } as Record<AlertSeverity, string>,
+  /** Amorce muette, jouée au premier geste pour lever le blocage. */
+  silence: '/sons/silence.wav',
+} as const;
+
 /** Rend la sirène d'une gravité donnée en WAV. Synchrone : aucun calcul différé. */
 export function renderSiren(severity: AlertSeverity): Blob {
   return encodeWav(synthesize(PATTERNS[severity]));

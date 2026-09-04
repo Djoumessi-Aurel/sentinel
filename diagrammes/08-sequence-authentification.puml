@@ -7,8 +7,11 @@ actor Utilisateur as u
 participant "Page de connexion" as page
 participant "AuthController" as ctrl
 participant "AuthService" as service
+participant "TwoFactorService" as tfa
 database "MySQL" as db
 participant "Directory\n(LDAP)" as ad
+
+== Première étape : le mot de passe ==
 
 u -> page : identifiant + mot de passe
 page -> ctrl : POST /api/auth/login
@@ -19,9 +22,9 @@ activate service
 alt Compte technique (sentineluser, sentineladmin)
   service -> service : vérifie l'empreinte scrypt
   note right
-    Aucun appel à l'annuaire : ces comptes
-    n'y existent pas. Ils restent utilisables
-    quand l'annuaire est en panne.
+    Aucun appel à l'annuaire, jamais de second
+    facteur : ces comptes doivent fonctionner
+    quand tout le reste est cassé.
   end note
 else Compte nominatif
   service -> db : l'identifiant est-il déclaré et actif ?
@@ -37,23 +40,49 @@ else Compte nominatif
   else Déclaré et actif
     service -> ad : bind(identifiant@domaine, mot de passe)
     ad --> service : accepté ou refusé
-    service -> db : met à jour lastLoginAt
   end
 end
-
-service --> ctrl : utilisateur, ou refus
 deactivate service
 
-alt Succès
-  ctrl --> page : 200 + cookie sentinel_session\n(HttpOnly, SameSite=Lax)
-else Échec
-  ctrl --> page : 401 « Identifiants incorrects\nou accès non autorisé »
-  note right
-    Message identique dans tous les cas :
-    le distinguer révélerait quels
-    identifiants existent.
+== Seconde étape : le second facteur ==
+
+alt Double authentification appairée
+  ctrl --> page : { requiresTwoFactor, challengeToken }
+  note left
+    Le jeton de défi n'est PAS une session :
+    il n'ouvre aucune route et expire en 5 min.
   end note
+
+  u -> page : code à 6 chiffres,\nou code de récupération
+  page -> ctrl : POST /api/auth/2fa/challenge
+  ctrl -> tfa : vérifie le second facteur
+  activate tfa
+  tfa -> db : lit le secret chiffré,\nou les codes de récupération
+  tfa -> tfa : déchiffre, recalcule le code TOTP\n(fenêtre ± 30 s)
+  tfa --> ctrl : accepté ou refusé
+  deactivate tfa
+  ctrl -> db : lastLoginAt
+  ctrl --> page : 200 + cookie sentinel_session
+
+else 2FA imposée mais pas encore appairée
+  ctrl --> page : 200 + cookie **restreint à l'appairage**
+  note left
+    Sans cela, imposer la 2FA n'aurait aucun
+    effet sur les comptes qui ne l'ont pas
+    encore configurée — c'est-à-dire, le jour
+    où on l'impose, sur tout le monde.
+  end note
+
+else Pas de double authentification
+  ctrl -> db : lastLoginAt
+  ctrl --> page : 200 + cookie sentinel_session\n(HttpOnly, SameSite=Lax)
 end
 deactivate ctrl
+
+note over page
+  En cas d'échec, à l'une ou l'autre étape :
+  message identique dans tous les cas.
+  Le nuancer révélerait quels identifiants existent.
+end note
 
 @enduml

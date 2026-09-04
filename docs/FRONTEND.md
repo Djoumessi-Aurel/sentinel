@@ -149,10 +149,22 @@ après chaque chargement de page, ce qui la rendait inutilisable sur un écran q
 personne ne touche. C'est d'ailleurs ainsi que fonctionne LTM, dont l'écran sonne
 sans aucune intervention.
 
-Le son est donc **calculé échantillon par échantillon en JavaScript**, encodé en
-WAV, puis joué par un `<audio>`. Aucun fichier à héberger, aucune API audio
-sollicitée pour le produire, et le son reste disponible même si le backend est
-tombé — précisément le moment où on en a besoin.
+Le son est **calculé échantillon par échantillon en JavaScript**, encodé en WAV,
+puis joué par un `<audio>`. Aucune API audio n'est sollicitée pour le produire.
+
+Ce calcul se fait désormais **à la construction**, pas dans le navigateur :
+`scripts/generer-sons.mjs` écrit les fichiers dans `public/sons/`, et l'interface
+les joue comme n'importe quelle ressource du site. Le script importe le module de
+synthèse utilisé par l'interface — il n'existe donc qu'une seule définition du
+signal, et les tests continuent de porter dessus.
+
+Ces fichiers ne sont **pas versionnés** : ils sont régénérés avant chaque `dev`,
+`build` et `start`. Les committer les laisserait diverger du code qui les produit,
+et l'écart ne se verrait qu'au moment où le mauvais son sortirait.
+
+Les trois sons sont demandés dès la préparation de la page. Servis en fichiers,
+ils seraient sinon téléchargés au moment précis de l'alerte — le pire moment pour
+attendre le réseau.
 
 > **Pourquoi pas `OfflineAudioContext` pour le rendu ?** C'était la première
 > approche. Chromium plafonne le nombre de contextes audio par processus de
@@ -162,10 +174,40 @@ tombé — précisément le moment où on en a besoin.
 > il est en prime testable sans navigateur : `test/siren-sound.test.mts` vérifie
 > les fréquences réellement produites, en comptant les passages par zéro.
 
-> **Piège de configuration.** Les sons sont exposés en URL `blob:`. La directive
-> `default-src 'self'` de la CSP couvre `media-src` et les bloque silencieusement
-> — le son ne partait jamais, sans autre trace qu'un message dans la console.
-> `next.config.mjs` déclare donc explicitement `media-src 'self' blob:`.
+> **Piège de configuration.** Les sons étaient exposés en URL `blob:`. La
+> directive `default-src 'self'` de la CSP couvre `media-src` et les bloquait
+> silencieusement — le son ne partait jamais, sans autre trace qu'un message dans
+> la console. `next.config.mjs` déclare explicitement `media-src 'self' blob:`,
+> conservé bien que les sons soient maintenant servis en fichiers : la ligne ne
+> coûte rien et évite de rouvrir le même piège si un `blob:` réapparaît.
+
+#### `blob:` ou fichier servi : ce qui a été vérifié, et ce qui ne l'a pas été
+
+Le passage du `blob:` au fichier servi vient d'une hypothèse : un contenu produit
+à la volée ne ressemble pas, pour le navigateur, à une ressource du site, et
+n'alimenterait donc pas l'*indice d'engagement média* que Chromium consulte pour
+décider d'autoriser une lecture spontanée.
+
+**Cette hypothèse n'a pas pu être vérifiée automatiquement.** Deux obstacles, tous
+deux constatés plutôt que supposés :
+
+- en mode sans interface, Chromium n'applique pas la politique de lecture
+  automatique et n'expose même pas `navigator.getAutoplayPolicy` ;
+- en mode visible, et malgré `--autoplay-policy=user-gesture-required` bien
+  présent dans la ligne de commande du navigateur (lue dans `chrome://version`),
+  la page rapporte `navigator.userActivation.isActive === true` **avant tout
+  clic** : le pilote d'automatisation accorde lui-même l'activation que la
+  politique réclame. Rien n'est donc jamais bloqué, et l'essai ne peut pas
+  distinguer les deux cas.
+
+Le seul juge est un navigateur réellement piloté par une personne.
+`chrome://media-engagement/` affiche le score de chaque site : comparer celui de
+Sentinel à celui d'une application dont le son part sans intervention tranche la
+question en quelques secondes.
+
+Le changement se justifie de toute façon par lui-même — un fichier est mis en
+cache, préchargé, et ne se recalcule pas à chaque chargement de page — mais il ne
+faut pas le présenter comme un correctif démontré.
 
 #### Si le navigateur refuse malgré tout
 

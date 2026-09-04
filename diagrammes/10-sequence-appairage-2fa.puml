@@ -1,0 +1,56 @@
+@startuml 10-sequence-appairage-2fa
+!include _commun.puml
+
+title Appairage de la double authentification
+
+actor Utilisateur as u
+participant "Écran\nMon compte" as page
+participant "TwoFactorService" as tfa
+database "MySQL" as db
+actor "Application\nd'authentification" as app
+
+u -> page : « Activer la double authentification »
+page -> tfa : POST /api/auth/2fa/setup
+activate tfa
+tfa -> tfa : tire un secret de 20 octets
+tfa -> db : enregistre le secret **chiffré**,\nsans l'activer
+note right of tfa
+  Chiffré, et non haché : le serveur doit
+  pouvoir le relire pour recalculer le code
+  attendu. C'est l'inverse d'un mot de passe.
+end note
+tfa --> page : secret, URI otpauth, QR code
+deactivate tfa
+
+u -> app : scanne le QR code
+app --> u : code à 6 chiffres,\nrenouvelé toutes les 30 s
+
+u -> page : saisit ce premier code
+page -> tfa : POST /api/auth/2fa/confirm
+activate tfa
+tfa -> db : lit et déchiffre le secret
+tfa -> tfa : vérifie le code
+
+alt Code correct
+  tfa -> db : active la 2FA\n+ 10 codes de récupération (empreintes)
+  tfa --> page : les 10 codes, **en clair**
+  page --> u : affichés une seule fois
+  note right of page
+    Ils répondent au téléphone perdu. Sans eux,
+    la seule issue serait d'appeler un
+    administrateur — et si la personne concernée
+    EST le dernier administrateur, il n'y en
+    aurait aucune.
+  end note
+else Code incorrect
+  tfa --> page : refus, rien n'est activé
+  note right of tfa
+    Rien n'est activé tant qu'un premier code
+    n'a pas confirmé l'appairage : un QR mal
+    scanné enfermerait sinon l'utilisateur
+    dehors à sa connexion suivante.
+  end note
+end
+deactivate tfa
+
+@enduml

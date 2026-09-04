@@ -4,8 +4,11 @@
   "private": true,
   "description": "Interface Next.js de Sentinel : dashboard, viewer temps réel, configuration",
   "scripts": {
+    "predev": "node ../../scripts/generer-sons.mjs",
     "dev": "next dev -p 3000",
+    "prebuild": "node ../../scripts/generer-sons.mjs",
     "build": "next build",
+    "prestart": "node ../../scripts/generer-sons.mjs",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/**/*.test.mts\""

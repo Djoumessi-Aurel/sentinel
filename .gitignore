@@ -21,6 +21,10 @@ out/
 *.log
 !docs/**/*.log
 
+# sons produits avant chaque build depuis lib/siren-sound.ts : les versionner
+# les laisserait diverger du code qui les produit
+apps/frontend/public/sons/
+
 # outils
 coverage/
 .DS_Store
