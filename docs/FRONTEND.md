@@ -74,15 +74,32 @@ global d'alertes (`joinGlobalAlerts`, voir `API.md §8`) et déclenche la sirèn
 quelle que soit la page affichée — y compris sur la télévision de l'open space,
 qui reste sur le tableau de bord.
 
-Deux contraintes navigateur à ne jamais perdre de vue :
+**Le son est actif par défaut, sans étape de consentement.** Qui ne souhaite pas
+l'entendre coupe l'onglet dans son navigateur — la fonction existe partout et
+n'a pas à être réimplémentée ici.
 
-- **Aucun son n'est autorisé avant un geste utilisateur.** Un
-  `AudioContext` créé sans clic préalable reste suspendu, et la sirène échoue
-  alors *en silence* — le pire comportement possible pour un outil de
-  supervision. D'où le bandeau « Activer le son », affiché tant que le son n'est
-  pas opérationnel, et un bip de confirmation immédiat à l'activation.
-- **La préférence est mémorisée** (`localStorage`), pour qu'un rafraîchissement
-  de la page sur l'écran mural ne remette pas la surveillance sonore en veille.
+Reste une contrainte qu'aucun code ne peut lever : **la politique de lecture
+automatique est appliquée par le navigateur**, pas par l'application. Un
+`AudioContext` créé sans interaction préalable reste suspendu, et il n'existe
+aucune API permettant de s'en affranchir. On la contourne de la seule manière
+possible :
+
+1. tentative de déblocage au montage — elle réussit si le navigateur autorise
+   déjà le son pour ce site ;
+2. sinon, `armOnFirstGesture` écoute discrètement le **premier geste, quel qu'il
+   soit** (clic, touche, contact tactile) et débloque le son à ce moment-là.
+   Aucun bouton dédié, aucune question posée : ouvrir un écran et cliquer
+   n'importe où suffit ;
+3. tant que le son reste bloqué, un indicateur discret le signale. Il n'appelle
+   aucune action — c'est un état, pas une demande — mais une surveillance
+   sonore qui échouerait en silence serait exactement ce que cette application
+   est censée empêcher (`CLAUDE.md §5.4`).
+
+**Pour un écran d'open space**, où personne n'interagit jamais avec la page, le
+plus simple est d'autoriser le son au niveau du navigateur, une fois pour
+toutes : dans Chrome, `chrome://settings/content/sound` → autoriser le site.
+L'étape 1 réussit alors dès l'ouverture, y compris après un redémarrage du
+poste ou un rechargement de la page.
 
 Le son lui-même est **synthétisé** par l'API Web Audio (`lib/alert-siren.ts`) :
 aucun fichier à héberger, et il reste disponible même si le backend est tombé —

@@ -137,6 +137,47 @@ export class AlertSiren {
     return true;
   }
 
+  /**
+   * Débloque le son au **premier geste de l'utilisateur**, quel qu'il soit.
+   *
+   * Aucune autorisation ne peut être accordée depuis le code : la politique de
+   * lecture automatique est appliquée par le navigateur lui-même. En revanche,
+   * rien n'oblige à demander un clic *dédié* — n'importe quelle interaction
+   * suffit. On écoute donc discrètement le premier clic, appui de touche ou
+   * contact tactile, et le son s'active sans que l'opérateur ait rien à faire
+   * de particulier.
+   *
+   * Retourne une fonction de désinscription.
+   */
+  armOnFirstGesture(onState: (state: SirenState) => void): () => void {
+    if (typeof document === 'undefined' || this.state === 'ready') return () => undefined;
+
+    const evenements = ['pointerdown', 'keydown', 'touchstart'] as const;
+    let termine = false;
+
+    const detacher = () => {
+      for (const nom of evenements) document.removeEventListener(nom, gerer, true);
+    };
+
+    const gerer = () => {
+      if (termine) return;
+      void this.unlock().then((state) => {
+        onState(state);
+        // Tant que le navigateur refuse, on reste à l'écoute : un geste peut
+        // survenir trop tôt (pendant le chargement) et échouer.
+        if (state === 'ready') {
+          termine = true;
+          detacher();
+        }
+      });
+    };
+
+    // En phase de capture : le geste est intercepté même si un composant
+    // interrompt la propagation de l'événement.
+    for (const nom of evenements) document.addEventListener(nom, gerer, true);
+    return detacher;
+  }
+
   /** Coupe la sirène en cours (bouton « Couper le son »). */
   stop(): void {
     this.stopCurrent?.();

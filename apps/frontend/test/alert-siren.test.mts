@@ -158,6 +158,69 @@ describe('AlertSiren', () => {
     assert.equal(programmations.length, 2);
   });
 
+  describe('déblocage au premier geste', () => {
+    /** Faux `document` : enregistre les écouteurs posés et permet de les déclencher. */
+    const fauxDocument = () => {
+      const ecouteurs = new Map<string, Set<EventListener>>();
+      return {
+        addEventListener: (nom: string, fn: EventListener) => {
+          if (!ecouteurs.has(nom)) ecouteurs.set(nom, new Set());
+          ecouteurs.get(nom)!.add(fn);
+        },
+        removeEventListener: (nom: string, fn: EventListener) => ecouteurs.get(nom)?.delete(fn),
+        declencher: (nom: string) => {
+          for (const fn of ecouteurs.get(nom) ?? []) fn(new Object() as Event);
+        },
+        nombreEcouteurs: () => [...ecouteurs.values()].reduce((total, set) => total + set.size, 0),
+      };
+    };
+
+    /**
+     * Aucune autorisation ne peut être accordée par le code : la politique est
+     * appliquée par le navigateur. Mais rien n'impose de réclamer un clic
+     * *dédié* — n'importe quel geste débloque le son, ce qui permet de
+     * supprimer toute étape de consentement.
+     */
+    it('s’active sur un simple clic, sans bouton dédié', async () => {
+      const faux = fauxDocument();
+      (globalThis as Record<string, unknown>)['document'] = faux;
+
+      const sirene = new AlertSiren();
+      const etats: string[] = [];
+      sirene.armOnFirstGesture((state) => etats.push(state));
+
+      assert.ok(faux.nombreEcouteurs() > 0, 'aucun écouteur posé');
+      faux.declencher('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+
+      assert.deepEqual(etats, ['ready']);
+      assert.equal(sirene.state, 'ready');
+    });
+
+    it('se désarme une fois le son débloqué', async () => {
+      const faux = fauxDocument();
+      (globalThis as Record<string, unknown>)['document'] = faux;
+
+      const sirene = new AlertSiren();
+      sirene.armOnFirstGesture(() => undefined);
+      faux.declencher('keydown');
+      await new Promise((r) => setTimeout(r, 10));
+
+      assert.equal(faux.nombreEcouteurs(), 0, 'les écouteurs auraient dû être retirés');
+    });
+
+    it('ne pose aucun écouteur si le son est déjà prêt', async () => {
+      const faux = fauxDocument();
+      (globalThis as Record<string, unknown>)['document'] = faux;
+
+      const sirene = new AlertSiren();
+      await sirene.unlock();
+      sirene.armOnFirstGesture(() => undefined);
+
+      assert.equal(faux.nombreEcouteurs(), 0);
+    });
+  });
+
   it('peut être coupée à la demande', async () => {
     const sirene = new AlertSiren();
     await sirene.unlock();
