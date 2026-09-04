@@ -181,15 +181,15 @@ attendre le réseau.
 > conservé bien que les sons soient maintenant servis en fichiers : la ligne ne
 > coûte rien et évite de rouvrir le même piège si un `blob:` réapparaît.
 
-#### `blob:` ou fichier servi : ce qui a été vérifié, et ce qui ne l'a pas été
+#### `blob:` ou fichier servi, et la vraie cause du clic
 
-Le passage du `blob:` au fichier servi vient d'une hypothèse : un contenu produit
+Le passage du `blob:` au fichier servi venait d'une hypothèse : un contenu produit
 à la volée ne ressemble pas, pour le navigateur, à une ressource du site, et
 n'alimenterait donc pas l'*indice d'engagement média* que Chromium consulte pour
 décider d'autoriser une lecture spontanée.
 
-**Cette hypothèse n'a pas pu être vérifiée automatiquement.** Deux obstacles, tous
-deux constatés plutôt que supposés :
+**Aucun essai automatisé n'a pu la vérifier**, et il faut savoir pourquoi avant
+d'en tenter un autre :
 
 - en mode sans interface, Chromium n'applique pas la politique de lecture
   automatique et n'expose même pas `navigator.getAutoplayPolicy` ;
@@ -197,17 +197,28 @@ deux constatés plutôt que supposés :
   présent dans la ligne de commande du navigateur (lue dans `chrome://version`),
   la page rapporte `navigator.userActivation.isActive === true` **avant tout
   clic** : le pilote d'automatisation accorde lui-même l'activation que la
-  politique réclame. Rien n'est donc jamais bloqué, et l'essai ne peut pas
-  distinguer les deux cas.
+  politique réclame. Rien n'est jamais bloqué, l'essai ne distingue donc pas les
+  deux cas.
 
-Le seul juge est un navigateur réellement piloté par une personne.
-`chrome://media-engagement/` affiche le score de chaque site : comparer celui de
-Sentinel à celui d'une application dont le son part sans intervention tranche la
-question en quelques secondes.
+**Le verdict est venu d'un essai à la main**, seul juge possible :
 
-Le changement se justifie de toute façon par lui-même — un fichier est mis en
-cache, préchargé, et ne se recalcule pas à chaque chargement de page — mais il ne
-faut pas le présenter comme un correctif démontré.
+| Navigateur | Avant | Après |
+|---|---|---|
+| Chrome | clic requis à chaque ouverture | la sirène part seule |
+| Edge | clic requis | clic toujours requis |
+
+Et l'écart entre les deux a livré la vraie explication : **Edge est plus
+restrictif que Chrome par défaut**. Il expose un réglage « Lecture automatique du
+support », positionné sur *Limiter*, que Chrome n'a pas. Le passer à *Autoriser*
+supprime le clic — c'est un réglage de poste, qu'aucune modification de
+l'application ne remplace. La marche à suivre est dans le guide d'utilisation,
+chapitre « L'écran de l'open space ».
+
+La leçon vaut d'être retenue : on a longtemps cherché dans le code ce qui était
+une politique de navigateur, et deux navigateurs de la même famille n'appliquent
+pas la même. Le fichier servi reste le bon choix — il est mis en cache,
+préchargé, et ne se recalcule pas à chaque chargement de page — mais il n'était
+pas, à lui seul, la réponse.
 
 #### Si le navigateur refuse malgré tout
 

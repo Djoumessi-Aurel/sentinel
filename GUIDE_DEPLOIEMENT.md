@@ -722,7 +722,7 @@ faut pas faire disparaître.
 | Un agent n'envoie rien | Pare-feu, ou token révoqué | `curl https://sentinel.gie.local/api/health` depuis le serveur applicatif |
 | Un agent reçoit des 429 | Quota d'ingestion atteint | Normal en cas de rafale ; persistant, c'est un fichier de log anormalement bavard |
 | Un service reste « inconnu » | Le nom déclaré ne correspond pas | `systemctl list-units --type=service` sur le serveur applicatif |
-| Le son ne se déclenche pas sur l'écran mural | Politique de lecture automatique du navigateur | Autoriser le son pour le site dans les paramètres du navigateur |
+| Le son ne se déclenche pas sur l'écran mural | Politique de lecture automatique du navigateur | Sur Edge : `edge://settings/content/mediaAutoplay` → **Autoriser** (il est sur « Limiter » par défaut). Chrome n'expose pas ce réglage et autorise de lui-même |
 | Le code de double authentification est toujours refusé | Horloge du téléphone décalée | Activer l'heure automatique sur le téléphone ; une minute d'écart suffit |
 | Quelqu'un a perdu son téléphone | — | Ses codes de récupération, ou une réinitialisation depuis l'écran **Utilisateurs** |
 

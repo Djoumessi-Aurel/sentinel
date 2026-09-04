@@ -196,9 +196,9 @@ Un bandeau jaune peut apparaître en haut de l'écran :
 > *Alertes sonores bloquées par le navigateur — cliquer ici les active*
 
 Les navigateurs interdisent à une page de jouer un son avant la première interaction de
-l'utilisateur. Un clic n'importe où lève le blocage pour la session. Pour l'écran mural, où
-personne ne clique, autorisez le son pour le site une fois pour toutes dans les paramètres du
-navigateur — le bandeau indique le chemin exact à ouvrir.
+l'utilisateur. Un clic n'importe où lève le blocage pour la session. Sur un écran que personne ne
+touche, c'est un réglage du navigateur qu'il faut faire — et **il n'est pas le même selon le
+navigateur**, voir « L'écran de l'open space » plus bas.
 
 ---
 
@@ -459,12 +459,32 @@ Pour l'écran mural, trois réglages une fois pour toutes :
 
 1. connectez-vous avec le compte **`sentineluser`** — sa session de trente jours évite les
    déconnexions inopinées ;
-2. **autorisez le son** pour le site dans les paramètres du navigateur, sinon la sirène restera
-   muette faute d'interaction ;
+2. **réglez la lecture automatique du son** (voir ci-dessous) ;
 3. laissez le **tableau de bord** affiché : il se rafraîchit seul et n'a besoin de personne.
 
 Une alerte critique déclenche la sirène quel que soit l'écran affiché — il n'est pas nécessaire
 d'être sur la page des alertes pour l'entendre.
+
+## Le son sans intervention : le réglage diffère selon le navigateur
+
+C'est le point qui a demandé le plus de tâtonnements, et il vaut la peine d'être écrit
+précisément : **Chrome et Edge ne se comportent pas de la même façon**, et le réglage à faire n'est
+pas au même endroit.
+
+| Navigateur | Réglage | Où |
+|:---|:---|:---|
+| **Chrome** | Aucun réglage d'autorisation de lecture automatique n'est exposé. Le navigateur décide seul, à partir de l'usage qu'on fait du site. En pratique, la sirène part sans intervention. | `chrome://settings/content/sound` ne sert qu'à **interdire** le son d'un site |
+| **Edge** | « Lecture automatique du support », réglé sur **Limiter** par défaut — c'est ce réglage qui impose le clic. Le passer à **Autoriser** suffit. | `edge://settings/content/mediaAutoplay` |
+
+Sur Edge, le chemin complet est : **Paramètres → Cookies et autorisations de site → Lecture
+automatique du support → Autoriser**.
+
+> Ce n'est pas un défaut de Sentinel, et aucune modification de l'application n'y changera quoi que
+> ce soit : Edge est simplement plus restrictif que Chrome par défaut. Le réglage est à faire une
+> fois sur le poste qui pilote l'écran mural.
+
+À défaut, un simple clic n'importe où dans la page lève le blocage — mais pour la session
+seulement, ce qui ne convient pas à un écran que personne ne touche.
 
 ---
 
@@ -493,8 +513,9 @@ se déclencher.
 
 **Aucun son ne se déclenche.**
 Le navigateur bloque la lecture automatique tant que personne n'a interagi avec la page. Cliquez
-n'importe où, ou autorisez le son pour le site dans ses paramètres — le bandeau jaune indique le
-chemin.
+n'importe où pour lever le blocage le temps de la session. Sur **Edge**, le réglage « Lecture
+automatique du support » est sur « Limiter » par défaut : le passer à « Autoriser » supprime
+définitivement le clic. Voir « Le son sans intervention » plus haut.
 
 **J'ai perdu le token d'un agent.**
 Émettez-en un nouveau depuis la page de l'application. L'ancien reste valide tant qu'il n'est pas
