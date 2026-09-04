@@ -1,0 +1,97 @@
+# Environnement central de Sentinel (docs/DEPLOYMENT.md §1).
+#
+# Cible de déploiement **serveur**. Le poste de développement, lui, n'a pas
+# Docker et travaille avec les binaires standalone : voir docs/DECISIONS.md D001
+# et la section 4.1 de DEPLOYMENT.md.
+#
+#   docker compose --env-file ../.env up -d
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sentinel}
+      MYSQL_USER: ${MYSQL_USER:-sentinel}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD est obligatoire}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD est obligatoire}
+    # utf8mb4 explicite : l'utf8 historique de MySQL est limité à 3 octets et
+    # tronquerait les messages de log contenant des caractères sur 4 octets.
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysqldata:/var/lib/mysql
+    # Jamais publié sur l'hôte : la base n'est jointe que par le réseau interne.
+    expose:
+      - '3306'
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      # À RETIRER avant toute mise en production : sans le plugin de sécurité,
+      # l'index est accessible sans authentification à quiconque atteint le
+      # réseau du conteneur (docs/SECURITY.md A05).
+      - plugins.security.disabled=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - osdata:/usr/share/opensearch/data
+    expose:
+      - '9200'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fs http://localhost:9200/_cluster/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: mysql://${MYSQL_USER:-sentinel}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-sentinel}
+      LOG_STORE: opensearch
+      OPENSEARCH_URL: http://opensearch:9200
+      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-sentinel-logs}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS est obligatoire, jamais *}
+      AGENT_TOKEN_SECRET: ${AGENT_TOKEN_SECRET:?AGENT_TOKEN_SECRET est obligatoire}
+      LOG_SOURCE_UTC_OFFSET_MINUTES: ${LOG_SOURCE_UTC_OFFSET_MINUTES:-60}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-25}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMS_GATEWAY_URL: ${SMS_GATEWAY_URL:-}
+      SMS_GATEWAY_API_KEY: ${SMS_GATEWAY_API_KEY:-}
+    depends_on:
+      mysql: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+    ports:
+      - '3001:3001'
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:3001}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '3000:3000'
+
+volumes:
+  mysqldata:
+  osdata:

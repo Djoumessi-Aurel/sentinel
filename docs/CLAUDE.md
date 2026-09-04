@@ -38,7 +38,7 @@ générales et l'organisation du dépôt).
 
 ## 3. Stack technique (imposée)
 
-- **Frontend** : Next.js 14+ (App Router), TypeScript, Tailwind CSS
+- **Frontend** : Next.js 16 (App Router), TypeScript, Tailwind CSS — voir `docs/DECISIONS.md` D006
 - **Backend** : NestJS, TypeScript
 - **Stockage logs** : OpenSearch (ou Elasticsearch, API compatible)
 - **Stockage métier/config** : MySQL 8 (via Prisma ou TypeORM — voir `docs/DATA_MODEL.md`)

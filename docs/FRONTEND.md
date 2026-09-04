@@ -1,6 +1,6 @@
 # FRONTEND.md
 
-Next.js 14+ (App Router), TypeScript, Tailwind CSS. Client Socket.IO pour le
+Next.js 16 (App Router), TypeScript, Tailwind CSS. Client Socket.IO pour le
 temps réel.
 
 ## 1. Arborescence

@@ -134,3 +134,59 @@ réellement pouvoir écrire (OWASP A01, moindre privilège).
 ### Note
 Le token est stocké en empreinte SHA-256 salée (`AGENT_TOKEN_SECRET`), comparé
 en temps constant, et n'est affiché en clair qu'une seule fois.
+
+---
+
+## D005 — Validation par Zod plutôt que class-validator
+
+**Date** : 2026-09-04
+**Statut** : appliqué
+**Documents concernés** : `CLAUDE.md §6`, `API.md §9`, `DATA_MODEL.md §1`
+
+### Contexte
+`CLAUDE.md §6` mentionne « DTO validés avec class-validator ». Mais
+`DATA_MODEL.md §1` impose Zod pour valider la forme des colonnes `Json`
+(configs), et `API.md §9` autorise explicitement « class-validator/Zod » à
+condition que les DTO soient définis une seule fois dans
+`packages/shared-types` et partagés avec le frontend.
+
+### Décision
+**Zod partout**, aucune dépendance à class-validator.
+
+### Justification
+Le point non négociable de `API.md §9` est le partage du contrat entre backend
+et frontend. class-validator repose sur des classes décorées, que le frontend ne
+peut pas consommer : il faudrait redéclarer chaque DTO en types côté client, ce
+qui recrée exactement la divergence que la règle veut empêcher. Un schéma Zod,
+lui, est à la fois le validateur du backend et la source du type TypeScript du
+frontend — une seule définition, aucune dérive possible.
+
+### Conséquences
+- `ZodValidationPipe` (`zodBody`) applique les schémas route par route.
+- Pas de `ValidationPipe` global : sans DTO décorés, il ne validerait rien tout
+  en donnant l'illusion d'une couche de contrôle supplémentaire.
+- Les schémas rejettent les champs inconnus et bornent les tailles, ce que
+  `INGESTION_LIMITS` exploite sur les routes d'ingestion (docs/SECURITY.md A03, A04).
+
+---
+
+## D006 — Next.js 16
+
+**Date** : 2026-09-04
+**Statut** : appliqué
+**Documents concernés** : `CLAUDE.md §3`, `FRONTEND.md`
+
+### Contexte
+Les documents demandent « Next.js 14+ ». Next 15.1 embarque en dépendance
+interne `postcss@8.4.31`, qui porte quatre vulnérabilités hautes (traversée de
+chemin via `sourceMappingURL`, XSS à la sérialisation CSS). La porte d'audit
+(`npm run audit:security`) refusait donc la livraison.
+
+### Décision
+Next.js **16.3.x**, qui embarque `postcss@8.5.23`, hors de la plage vulnérable.
+Cela reste conforme à « 14+ », et rejoint l'intention d'un commit antérieur du
+dépôt qui mentionnait déjà « Next.js 16+ ».
+
+### Conséquences
+Aucune exception d'audit n'a été nécessaire : la vulnérabilité est corrigée, pas
+contournée. React 19 est requis par Next 16, ce qui était déjà le cas.

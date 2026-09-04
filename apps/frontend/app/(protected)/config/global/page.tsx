@@ -1,0 +1,253 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { KNOWN_LOG_LEVELS, type GlobalConfig } from '@sentinel/shared-types';
+
+import { ApiError, api } from '@/lib/api-client';
+
+/**
+ * Configuration globale (docs/CONFIG_MANAGEMENT.md §4).
+ *
+ * Point produit essentiel, rappelé à l'écran : enregistrer ici **ne change rien**
+ * aux applications existantes. La propagation est un geste explicite, via
+ * « Généraliser ». Sans ce rappel, l'utilisateur croirait avoir modifié tout le
+ * parc et découvrirait le contraire lors d'un incident.
+ */
+export default function GlobalConfigPage() {
+  const [config, setConfig] = useState<GlobalConfig | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.config
+      .getGlobal()
+      .then(setConfig)
+      .catch((cause: unknown) => setError(cause instanceof ApiError ? cause.message : 'Chargement impossible'));
+  }, []);
+
+  if (error) return <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>;
+  if (!config) return <p className="text-sm text-slate-500">Chargement…</p>;
+
+  const setColor = (key: 'background' | 'text', value: string) =>
+    setConfig({ ...config, displayColors: { ...config.displayColors, [key]: value } });
+
+  const setLevelColor = (level: string, value: string) =>
+    setConfig({
+      ...config,
+      displayColors: { ...config.displayColors, levelColors: { ...config.displayColors.levelColors, [level]: value } },
+    });
+
+  const save = async () => {
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const updated = await api.config.updateGlobal({
+        displayColors: config.displayColors,
+        alertChannelsDefault: config.alertChannelsDefault,
+        serviceCheckDefaults: config.serviceCheckDefaults,
+      });
+      setConfig(updated);
+      setMessage('Configuration globale enregistrée. Les applications existantes sont inchangées.');
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Enregistrement impossible');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const contrast = contrastRatio(config.displayColors.text, config.displayColors.background);
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Configuration globale</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Ces valeurs servent de modèle aux <strong className="text-slate-400">nouvelles</strong> applications. Pour les
+          appliquer aux applications déjà déclarées, utiliser{' '}
+          <Link href="/config/generalize" className="text-sky-400 hover:text-sky-300">
+            Généraliser
+          </Link>
+          .
+        </p>
+      </div>
+
+      <section className="space-y-4 rounded-lg border border-white/10 bg-surface-raised p-4">
+        <h2 className="font-medium">Affichage des logs</h2>
+
+        <div className="flex flex-wrap gap-4">
+          <ColorField label="Fond" value={config.displayColors.background} onChange={(v) => setColor('background', v)} />
+          <ColorField label="Texte" value={config.displayColors.text} onChange={(v) => setColor('text', v)} />
+        </div>
+
+        {/* Avertissement, pas blocage (docs/FRONTEND.md §5) : c'est un choix de
+            l'utilisateur, mais une combinaison illisible se paie pendant un incident. */}
+        {contrast < 4.5 && (
+          <p className="rounded border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            Contraste texte/fond de {contrast.toFixed(1)}:1, sous le seuil WCAG AA de 4,5:1. Les logs risquent d’être
+            difficiles à lire.
+          </p>
+        )}
+
+        <div>
+          <h3 className="mb-2 text-sm text-slate-400">Couleur par niveau</h3>
+          <div className="flex flex-wrap gap-3">
+            {[...new Set([...KNOWN_LOG_LEVELS, ...Object.keys(config.displayColors.levelColors)])].map((level) => (
+              <ColorField
+                key={level}
+                label={level}
+                value={config.displayColors.levelColors[level] ?? config.displayColors.text}
+                onChange={(value) => setLevelColor(level, value)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="rounded border border-white/10 p-3 font-mono text-xs"
+          style={{ backgroundColor: config.displayColors.background, color: config.displayColors.text }}
+        >
+          <div>
+            <span style={{ color: config.displayColors.levelColors['INFO'] }}>INFO </span> Traitement de début de journée
+            démarré
+          </div>
+          <div>
+            <span style={{ color: config.displayColors.levelColors['WARN'] }}>WARN </span> Reprise de la connexion JDBC
+          </div>
+          <div>
+            <span style={{ color: config.displayColors.levelColors['ERROR'] }}>ERROR</span> Timeout JDBC après 30 s
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-white/10 bg-surface-raised p-4">
+        <h2 className="font-medium">Canaux d’alerte par défaut</h2>
+        <div className="flex flex-wrap gap-4 text-sm">
+          {(['visual', 'sound', 'email', 'sms'] as const).map((channel) => (
+            <label key={channel} className="flex items-center gap-2 text-slate-300">
+              <input
+                type="checkbox"
+                checked={config.alertChannelsDefault[channel]}
+                onChange={(event) =>
+                  setConfig({
+                    ...config,
+                    alertChannelsDefault: { ...config.alertChannelsDefault, [channel]: event.target.checked },
+                  })
+                }
+              />
+              {{ visual: 'Visuel', sound: 'Sonore', email: 'Email', sms: 'SMS' }[channel]}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500">
+          Les destinataires email et SMS se renseignent application par application : un canal activé sans destinataire
+          n’envoie rien, et l’historique des alertes le signale explicitement.
+        </p>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-white/10 bg-surface-raised p-4">
+        <h2 className="font-medium">Vérification des services</h2>
+        <div className="flex flex-wrap items-end gap-4 text-sm">
+          <label>
+            <span className="mb-1 block text-slate-400">Intervalle par défaut (secondes)</span>
+            <input
+              type="number"
+              min={5}
+              max={3600}
+              value={config.serviceCheckDefaults.checkInterval}
+              onChange={(event) =>
+                setConfig({
+                  ...config,
+                  serviceCheckDefaults: {
+                    ...config.serviceCheckDefaults,
+                    checkInterval: Number(event.target.value),
+                  },
+                })
+              }
+              className="w-28 rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            />
+          </label>
+          <label className="flex items-center gap-2 pb-1.5 text-slate-300">
+            <input
+              type="checkbox"
+              checked={config.serviceCheckDefaults.criticalByDefault}
+              onChange={(event) =>
+                setConfig({
+                  ...config,
+                  serviceCheckDefaults: { ...config.serviceCheckDefaults, criticalByDefault: event.target.checked },
+                })
+              }
+            />
+            Nouveau service critique par défaut
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-surface-raised p-4">
+        <h2 className="mb-2 font-medium">Analyseurs créés pour toute nouvelle application</h2>
+        <ul className="space-y-1 text-sm text-slate-400">
+          {config.analyzerDefaults.map((analyzer) => (
+            <li key={analyzer.type} className="flex gap-2">
+              <span className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-slate-300">{analyzer.type}</span>
+              {analyzer.name}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
+        >
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+        {message && <span className="text-sm text-emerald-400">{message}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="text-sm">
+      <span className="mb-1 block text-slate-400">{label}</span>
+      <span className="flex items-center gap-2">
+        <input
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-8 w-10 cursor-pointer rounded border border-white/10 bg-transparent"
+        />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-24 rounded border border-white/10 bg-surface px-2 py-1 font-mono text-xs text-slate-300"
+        />
+      </span>
+    </label>
+  );
+}
+
+/** Ratio de contraste WCAG, calculé côté client (docs/FRONTEND.md §5). */
+function contrastRatio(foreground: string, background: string): number {
+  const luminance = (hex: string): number => {
+    const normalized = hex.replace('#', '');
+    const full = normalized.length === 3 ? normalized.split('').map((c) => c + c).join('') : normalized;
+    const channels = [0, 2, 4].map((offset) => {
+      const value = parseInt(full.slice(offset, offset + 2), 16) / 255;
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * (channels[0] ?? 0) + 0.7152 * (channels[1] ?? 0) + 0.0722 * (channels[2] ?? 0);
+  };
+
+  const first = luminance(foreground);
+  const second = luminance(background);
+  const lighter = Math.max(first, second);
+  const darker = Math.min(first, second);
+  return (lighter + 0.05) / (darker + 0.05);
+}

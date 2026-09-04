@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AlertingModule } from './alerting/alerting.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { AppConfigModule } from './common/config/config.module';
+import { AgentAwareThrottlerGuard } from './common/throttler/agent-aware-throttler.guard';
 import { AuthModule } from './common/auth/auth.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthController } from './health.controller';
@@ -27,12 +28,17 @@ import { SettingsModule } from './settings/settings.module';
     RedactionModule,
     LogStoreModule,
 
-    // Limitation de débit globale (docs/SECURITY.md A04). Le quota nommé
-    // `ingestion` est bien plus large : un agent Vector émet légitimement un lot
-    // toutes les deux secondes, là où le quota par défaut vise un usage humain.
+    // Limitation de débit globale (docs/SECURITY.md A04), comptée par agent et
+    // non par IP — voir AgentAwareThrottlerGuard.
+    //
+    // Le quota `default` vise l'interface : un poste ouvert sur le tableau de
+    // bord et deux écrans de détail génère quelques dizaines d'appels par
+    // minute, et plusieurs opérateurs peuvent sortir d'une même adresse.
+    // Le quota `ingestion` vise un agent Vector, qui émet légitimement un lot
+    // toutes les deux secondes, plus ses vérifications de statut.
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 120 },
-      { name: 'ingestion', ttl: 60_000, limit: 300 },
+      { name: 'default', ttl: 60_000, limit: 600 },
+      { name: 'ingestion', ttl: 60_000, limit: 240 },
     ]),
 
     EventEmitterModule.forRoot({ wildcard: false, maxListeners: 20 }),
@@ -48,6 +54,6 @@ import { SettingsModule } from './settings/settings.module';
     RealtimeModule,
   ],
   controllers: [HealthController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: AgentAwareThrottlerGuard }],
 })
 export class AppModule {}
