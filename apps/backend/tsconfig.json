@@ -6,8 +6,15 @@
     "baseUrl": "./",
     "incremental": true,
     "strictPropertyInitialization": false,
-    "noUncheckedIndexedAccess": false
+    "noUncheckedIndexedAccess": false,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "prisma"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma"
+  ]
 }
