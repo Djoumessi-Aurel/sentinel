@@ -16,11 +16,11 @@ import { useGlobalAlerts } from '@/lib/socket-client';
  * l'application concernée.
  *
  * Le son est **actif par défaut**, sans étape de consentement : qui ne veut pas
- * l'entendre coupe l'onglet dans son navigateur. Reste que la politique de
- * lecture automatique est appliquée par le navigateur et non par ce code —
- * aucune autorisation ne peut être accordée depuis le JavaScript. On la contourne
- * de la seule manière possible : en débloquant le son au premier geste
- * quelconque de l'utilisateur, sans rien lui demander (`armOnFirstGesture`).
+ * l'entendre coupe l'onglet dans son navigateur. La sirène passe par un élément
+ * `<audio>`, dont la politique de lecture automatique s'appuie sur l'engagement
+ * mémorisé par site : sur un poste où l'application a déjà servi, elle sonne
+ * sans la moindre interaction. Le déblocage au premier geste ne reste qu'un
+ * filet de sécurité pour les tout premiers usages (`armOnFirstGesture`).
  */
 
 /** Nombre d'alertes récentes gardées dans le bandeau. */
@@ -43,10 +43,11 @@ export function AlertCenter() {
     const desarmer = siren.armOnFirstGesture();
     const desabonner = siren.onStateChange(setSirenState);
 
-    // Tentative immédiate, non bloquante : elle réussit si le navigateur
-    // autorise déjà le son pour ce site — le cas d'un poste réglé une fois pour
-    // toutes, typiquement l'écran de l'open space (docs/FRONTEND.md §3.1).
-    setSirenState(siren.tryUnlock());
+    // Préparation des sons puis test de la lecture automatique. Elle réussit
+    // sans aucune interaction dès que le navigateur a mémorisé un engagement
+    // pour ce site — c'est ce qui fait sonner l'écran de l'open space, que
+    // personne ne touche jamais (docs/FRONTEND.md §3.1).
+    void siren.prepare().then(setSirenState);
 
     return () => {
       desarmer();
@@ -94,7 +95,7 @@ export function AlertCenter() {
           type="button"
           // Cliquer sur l'indicateur est lui-même le geste qui débloque le son :
           // l'utilisateur qui le remarque n'a rien d'autre à chercher.
-          onClick={() => setSirenState(getSiren().tryUnlock(true))}
+          onClick={() => void getSiren().prepare().then(setSirenState)}
           className="w-full border-b border-slate-200 bg-slate-100 px-6 py-1 text-center text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-700"
         >
           Son en attente d’une première interaction avec la page — cliquer n’importe où, ou ici, l’active.

@@ -4,11 +4,14 @@ import { before, beforeEach, describe, it } from 'node:test';
 /**
  * Tests de la sirène d'alerte.
  *
- * Le son ne peut pas être « écouté » par un test : on vérifie donc le signal
- * programmé — durée, alternances de tonalité, amplitude, timbre — et surtout la
- * mécanique de déblocage, qui est la partie qui a réellement cassé en
- * conditions normales (voir « politique de lecture automatique »).
+ * Deux niveaux :
+ *  - le **signal** lui-même (durée, alternances, timbre, amplitude), qui décide
+ *    si le son fait lever la tête ou passe pour une notification de téléphone ;
+ *  - la **mécanique de déclenchement**, qui est la partie ayant réellement
+ *    échoué en conditions normales et qui mérite donc des tests de régression.
  */
+
+// --- Doublures du navigateur -------------------------------------------------
 
 interface Programmation {
   frequences: number[];
@@ -18,67 +21,17 @@ interface Programmation {
   timbre: string;
 }
 
-let programmations: Programmation[] = [];
-
-/**
- * Faux contexte audio, réglable pour rejouer les deux régimes des navigateurs :
- * autorisé d'emblée, ou suspendu tant qu'aucun geste n'a eu lieu.
- */
-class FauxAudioContext {
-  /** État dans lequel démarre tout nouveau contexte. */
-  static etatInitial: 'running' | 'suspended' = 'running';
-  /** `resume()` réveille-t-il réellement le contexte ? */
-  static resumeReussit = true;
-  /** Nombre de contextes créés, pour vérifier qu'un contexte bloqué est bien jeté. */
-  static crees = 0;
-  static fermes = 0;
-
-  state: 'running' | 'suspended' | 'closed';
-  currentTime = 0;
-  sampleRate = 48000;
+/** Contexte audio factice : enregistre ce qui aurait été programmé. */
+class FauxContexte {
+  readonly programmations: Programmation[] = [];
   destination = { nom: 'destination' };
-  private ecouteurs = new Set<() => void>();
-
-  constructor() {
-    FauxAudioContext.crees += 1;
-    this.state = FauxAudioContext.etatInitial;
-  }
-
-  addEventListener(_nom: string, fn: () => void): void {
-    this.ecouteurs.add(fn);
-  }
-  removeEventListener(_nom: string, fn: () => void): void {
-    this.ecouteurs.delete(fn);
-  }
-
-  async resume(): Promise<void> {
-    if (!FauxAudioContext.resumeReussit) {
-      // Reproduit le cas qui a cassé : une promesse qui ne se résout jamais.
-      return new Promise<void>(() => undefined);
-    }
-    this.state = 'running';
-    for (const fn of this.ecouteurs) fn();
-  }
-
-  async close(): Promise<void> {
-    FauxAudioContext.fermes += 1;
-    this.state = 'closed';
-  }
-
-  createBuffer(): unknown {
-    return {};
-  }
-  createBufferSource(): unknown {
-    return { buffer: null, connect: () => undefined, start: () => undefined };
-  }
 
   createOscillator(): unknown {
     const programmation: Programmation = { frequences: [], gains: [], debut: 0, fin: 0, timbre: '' };
-    programmations.push(programmation);
-
+    this.programmations.push(programmation);
     const oscillateur = {
       type: '',
-      frequency: { setValueAtTime: (value: number) => programmation.frequences.push(value) },
+      frequency: { setValueAtTime: (v: number) => programmation.frequences.push(v) },
       connect: (cible: unknown) => cible,
       start: (when: number) => {
         programmation.debut = when;
@@ -87,23 +40,68 @@ class FauxAudioContext {
         programmation.fin = when;
         programmation.timbre = oscillateur.type;
       },
-      disconnect: () => undefined,
-      onended: null as null | (() => void),
     };
     return oscillateur;
   }
 
   createGain(): unknown {
-    const programmation = programmations[programmations.length - 1];
+    const programmation = this.programmations[this.programmations.length - 1];
     return {
       gain: {
-        setValueAtTime: (value: number) => programmation?.gains.push(value),
-        exponentialRampToValueAtTime: (value: number) => programmation?.gains.push(value),
-        linearRampToValueAtTime: (value: number) => programmation?.gains.push(value),
+        setValueAtTime: (v: number) => programmation?.gains.push(v),
+        exponentialRampToValueAtTime: (v: number) => programmation?.gains.push(v),
+        linearRampToValueAtTime: (v: number) => programmation?.gains.push(v),
       },
       connect: (cible: unknown) => cible,
-      disconnect: () => undefined,
     };
+  }
+}
+
+class FauxOfflineAudioContext extends FauxContexte {
+  // Champs déclarés puis affectés : les « paramètres-propriétés » de TypeScript
+  // ne sont pas gérés par le mode d'exécution directe de Node.
+  length: number;
+  sampleRate: number;
+
+  constructor(_channels: number, length: number, sampleRate: number) {
+    super();
+    this.length = length;
+    this.sampleRate = sampleRate;
+  }
+
+  async startRendering(): Promise<{ getChannelData: () => Float32Array }> {
+    return { getChannelData: () => new Float32Array(this.length) };
+  }
+}
+
+/** Élément `<audio>` factice, dont on pilote l'autorisation de lecture. */
+class FauxAudio {
+  /** Le navigateur autorise-t-il la lecture automatique ? */
+  static autorise = true;
+  static instances: FauxAudio[] = [];
+
+  src = '';
+  volume = 1;
+  currentTime = 0;
+  preload = '';
+  readonly lectures: string[] = [];
+  pauses = 0;
+
+  constructor() {
+    FauxAudio.instances.push(this);
+  }
+
+  async play(): Promise<void> {
+    if (!FauxAudio.autorise) {
+      const erreur = new Error('play() failed because the user didn’t interact with the document first.');
+      erreur.name = 'NotAllowedError';
+      throw erreur;
+    }
+    this.lectures.push(this.src);
+  }
+
+  pause(): void {
+    this.pauses += 1;
   }
 }
 
@@ -123,184 +121,216 @@ function fauxDocument() {
   };
 }
 
+let sonModule: typeof import('../lib/siren-sound.ts');
 let AlertSiren: typeof import('../lib/alert-siren.ts').AlertSiren;
 
 before(async () => {
-  (globalThis as Record<string, unknown>)['window'] = globalThis;
-  (globalThis as Record<string, unknown>)['AudioContext'] = FauxAudioContext;
+  const globaux = globalThis as Record<string, unknown>;
+  globaux['window'] = globalThis;
+  globaux['Audio'] = FauxAudio;
+  globaux['OfflineAudioContext'] = FauxOfflineAudioContext;
+  // `URL.createObjectURL` existe nativement dans Node : ne pas y toucher, la
+  // remplacer casse des rouages internes du lanceur de tests.
+
+  sonModule = await import('../lib/siren-sound.ts');
   ({ AlertSiren } = await import('../lib/alert-siren.ts'));
 });
 
 beforeEach(() => {
-  programmations = [];
-  FauxAudioContext.etatInitial = 'running';
-  FauxAudioContext.resumeReussit = true;
-  FauxAudioContext.crees = 0;
-  FauxAudioContext.fermes = 0;
+  FauxAudio.autorise = true;
+  FauxAudio.instances = [];
   (globalThis as Record<string, unknown>)['document'] = fauxDocument();
 });
 
-describe('AlertSiren — déblocage', () => {
-  it('est prête sans rien demander quand le navigateur autorise déjà le son', () => {
-    const sirene = new AlertSiren();
-    assert.equal(sirene.tryUnlock(), 'ready');
+// --- Le signal sonore --------------------------------------------------------
+
+describe('signal de la sirène', () => {
+  const programmer = (severite: 'critical' | 'warning') => {
+    const contexte = new FauxContexte();
+    sonModule.scheduleSiren(contexte as unknown as BaseAudioContext, sonModule.PATTERNS[severite]);
+    return contexte.programmations[0]!;
+  };
+
+  describe('alerte critique', () => {
+    it('dure assez longtemps pour faire lever la tête', () => {
+      const p = programmer('critical');
+      assert.equal(p.fin - p.debut, 8);
+    });
+
+    it('alterne deux tonalités de nombreuses fois, comme une sirène', () => {
+      const p = programmer('critical');
+      assert.ok(p.frequences.length >= 20, `seulement ${p.frequences.length} tonalités`);
+
+      const distinctes = new Set(p.frequences);
+      assert.equal(distinctes.size, 2, 'un son à une seule fréquence n’attire pas l’attention');
+      assert.deepEqual([...distinctes].sort((a, b) => b - a), [988, 740]);
+    });
+
+    it('utilise un timbre perçant et un volume élevé', () => {
+      const p = programmer('critical');
+      // La dent de scie est bien plus riche en harmoniques qu'une sinusoïde :
+      // à volume égal, elle porte beaucoup plus loin.
+      assert.equal(p.timbre, 'sawtooth');
+      assert.ok(Math.max(...p.gains) >= 0.5, 'volume trop faible pour un open space');
+    });
+
+    it('pulse au lieu de tenir une note continue', () => {
+      const p = programmer('critical');
+      const niveaux = new Set(p.gains.map((g) => Math.round(g * 100)));
+      assert.ok(niveaux.size >= 2, 'aucune pulsation : le son est plat');
+    });
   });
 
-  describe('quand le navigateur exige un geste', () => {
+  it('garde l’avertissement bref et plus discret que le critique', () => {
+    const critique = programmer('critical');
+    const avertissement = programmer('warning');
+
+    assert.ok(
+      avertissement.fin - avertissement.debut < (critique.fin - critique.debut) / 2,
+      'un avertissement ne doit pas interrompre le plateau',
+    );
+    assert.ok(Math.max(...avertissement.gains) < Math.max(...critique.gains));
+  });
+});
+
+describe('encodage WAV', () => {
+  it('produit un en-tête RIFF/WAVE valide et la bonne taille', async () => {
+    const echantillons = new Float32Array(1000);
+    const blob = sonModule.encodeWav(echantillons, 22_050);
+    const octets = new Uint8Array(await blob.arrayBuffer());
+    const texte = (debut: number, fin: number) => String.fromCharCode(...octets.slice(debut, fin));
+
+    assert.equal(texte(0, 4), 'RIFF');
+    assert.equal(texte(8, 12), 'WAVE');
+    assert.equal(texte(36, 40), 'data');
+    // 44 octets d'en-tête + 2 octets par échantillon (PCM 16 bits mono).
+    assert.equal(blob.size, 44 + 1000 * 2);
+    assert.equal(blob.type, 'audio/wav');
+  });
+
+  it('écrête les valeurs hors bornes plutôt que de produire un craquement', async () => {
+    const blob = sonModule.encodeWav(new Float32Array([2, -2]), 22_050);
+    const vue = new DataView(await blob.arrayBuffer());
+    assert.equal(vue.getInt16(44, true), 32767);
+    assert.equal(vue.getInt16(46, true), -32768);
+  });
+});
+
+// --- La mécanique de déclenchement -------------------------------------------
+
+describe('AlertSiren', () => {
+  /**
+   * Le cas de l'écran d'open space : personne n'interagit jamais avec la page.
+   * Un élément `<audio>` s'appuie sur l'engagement mémorisé par site, ce qui
+   * permet de sonner sans le moindre clic — contrairement à un AudioContext,
+   * qui exige une interaction dans chaque page chargée.
+   */
+  it('est prête sans aucune interaction quand le navigateur l’autorise', async () => {
+    const sirene = new AlertSiren();
+    assert.equal(await sirene.prepare(), 'ready');
+  });
+
+  it('joue la sirène demandée', async () => {
+    const sirene = new AlertSiren();
+    await sirene.prepare();
+
+    assert.equal(sirene.play('critical'), true);
+    await new Promise((r) => setTimeout(r, 5));
+
+    const element = FauxAudio.instances[0]!;
+    // La première lecture est le silence de test, la seconde la sirène.
+    assert.equal(element.lectures.length, 2);
+    assert.notEqual(element.lectures[1], element.lectures[0]);
+  });
+
+  it('interrompt la sirène en cours plutôt que de superposer deux sons', async () => {
+    const sirene = new AlertSiren();
+    await sirene.prepare();
+    const element = FauxAudio.instances[0]!;
+    const pausesAvant = element.pauses;
+
+    sirene.play('warning');
+    sirene.play('critical');
+    assert.ok(element.pauses > pausesAvant, 'la lecture précédente aurait dû être interrompue');
+  });
+
+  it('peut être coupée à la demande', async () => {
+    const sirene = new AlertSiren();
+    await sirene.prepare();
+    sirene.play('critical');
+
+    sirene.stop();
+    assert.equal(FauxAudio.instances[0]!.currentTime, 0);
+  });
+
+  describe('quand le navigateur refuse la lecture automatique', () => {
     beforeEach(() => {
-      FauxAudioContext.etatInitial = 'suspended';
+      FauxAudio.autorise = false;
     });
 
-    it('signale que le son est bloqué', () => {
+    it('signale que le son est bloqué au lieu d’échouer en silence', async () => {
       const sirene = new AlertSiren();
-      assert.equal(sirene.tryUnlock(), 'blocked');
+      assert.equal(await sirene.prepare(), 'blocked');
+      assert.equal(sirene.state, 'blocked');
     });
 
     /**
-     * Régression corrigée : un contexte créé hors geste est marqué bloqué par
-     * Chrome, et le `resume()` d'un clic ultérieur ne le réveille pas de façon
-     * fiable. On le referme donc pour repartir d'un contexte neuf.
+     * Régression : les écouteurs de geste doivent être posés de façon
+     * synchrone. Les enchaîner derrière une promesse les rendait tributaires de
+     * sa résolution — et une promesse restée en attente suffisait à ce
+     * qu'aucun clic ne débloque plus jamais rien.
      */
-    it('jette le contexte créé hors geste au lieu de le conserver', () => {
-      const sirene = new AlertSiren();
-      sirene.tryUnlock();
-      assert.equal(FauxAudioContext.crees, 1);
-      assert.equal(FauxAudioContext.fermes, 1, 'le contexte bloqué aurait dû être fermé');
-    });
-
-    it('se débloque sur un geste, avec un contexte neuf', () => {
+    it('pose ses écouteurs immédiatement, sans attendre quoi que ce soit', () => {
       const faux = globalThis.document as unknown as ReturnType<typeof fauxDocument>;
       const sirene = new AlertSiren();
 
       sirene.armOnFirstGesture();
-      sirene.tryUnlock();
-
-      faux.declencher('pointerdown');
-      assert.equal(sirene.state, 'ready');
-      assert.equal(FauxAudioContext.crees, 2, 'un contexte neuf aurait dû être créé pour le geste');
-    });
-
-    /**
-     * **Le bug qui a été signalé.** Quand `resume()` ne se résout jamais, tout
-     * code enchaîné derrière ne s'exécute pas. Si les écouteurs de geste en
-     * dépendaient, plus aucun clic ne pouvait débloquer le son : le bandeau
-     * restait affiché indéfiniment. Ils doivent donc être posés de façon
-     * synchrone, sans rien attendre.
-     */
-    it('pose ses écouteurs même si resume() ne se résout jamais', () => {
-      FauxAudioContext.resumeReussit = false;
-      const faux = globalThis.document as unknown as ReturnType<typeof fauxDocument>;
-
-      const sirene = new AlertSiren();
-      sirene.armOnFirstGesture();
-      sirene.tryUnlock();
-
       assert.ok(faux.nombreEcouteurs() > 0, 'aucun écouteur posé : un clic ne pourrait rien débloquer');
-
-      // Le geste ne réussit pas non plus, mais l'écoute doit persister pour les
-      // gestes suivants plutôt que d'abandonner définitivement.
-      faux.declencher('pointerdown');
-      assert.ok(faux.nombreEcouteurs() > 0, 'les écouteurs auraient dû rester en place');
     });
 
-    it('notifie l’interface du changement d’état', () => {
+    it('se débloque au premier geste et prévient l’interface', async () => {
       const faux = globalThis.document as unknown as ReturnType<typeof fauxDocument>;
       const sirene = new AlertSiren();
       const etats: string[] = [];
 
       sirene.onStateChange((state) => etats.push(state));
       sirene.armOnFirstGesture();
-      sirene.tryUnlock();
+      await sirene.prepare();
 
-      faux.declencher('mousedown');
+      // L'utilisateur clique : le navigateur autorise désormais la lecture.
+      FauxAudio.autorise = true;
+      faux.declencher('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+
+      assert.equal(sirene.state, 'ready');
       assert.ok(etats.includes('ready'), `états observés : ${etats.join(', ')}`);
+      assert.equal(faux.nombreEcouteurs(), 0, 'les écouteurs auraient dû être retirés');
     });
 
-    it('se désarme une fois le son débloqué', () => {
+    it('reste à l’écoute si le geste ne suffit pas', async () => {
       const faux = globalThis.document as unknown as ReturnType<typeof fauxDocument>;
       const sirene = new AlertSiren();
 
       sirene.armOnFirstGesture();
-      faux.declencher('keydown');
+      faux.declencher('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
 
-      assert.equal(faux.nombreEcouteurs(), 0, 'les écouteurs auraient dû être retirés');
-    });
-  });
-
-  it('refuse de jouer tant que le son est bloqué', () => {
-    FauxAudioContext.etatInitial = 'suspended';
-    const sirene = new AlertSiren();
-    sirene.tryUnlock();
-    assert.equal(sirene.play('critical'), false);
-  });
-});
-
-describe('AlertSiren — signal sonore', () => {
-  const jouer = (severite: 'critical' | 'warning') => {
-    programmations = [];
-    const sirene = new AlertSiren();
-    sirene.tryUnlock();
-    const joue = sirene.play(severite);
-    return { joue, programmation: programmations[0]! };
-  };
-
-  describe('alerte critique', () => {
-    it('dure assez longtemps pour faire lever la tête', () => {
-      const { joue, programmation } = jouer('critical');
-      assert.equal(joue, true);
-      assert.equal(programmation.fin - programmation.debut, 8);
+      assert.ok(faux.nombreEcouteurs() > 0, 'abandonner après un geste raté condamnerait le son');
     });
 
-    it('alterne deux tonalités de nombreuses fois, comme une sirène', () => {
-      const { programmation } = jouer('critical');
-      assert.ok(programmation.frequences.length >= 20, `seulement ${programmation.frequences.length} tonalités`);
+    it('repasse à « bloqué » si une lecture est refusée en cours de route', async () => {
+      const sirene = new AlertSiren();
+      FauxAudio.autorise = true;
+      await sirene.prepare();
+      assert.equal(sirene.state, 'ready');
 
-      const distinctes = new Set(programmation.frequences);
-      assert.equal(distinctes.size, 2, 'un son à une seule fréquence n’attire pas l’attention');
-      assert.deepEqual([...distinctes].sort((a, b) => b - a), [988, 740]);
+      // Le navigateur se met à refuser : l'interface ne doit pas continuer à
+      // prétendre que la surveillance sonore fonctionne.
+      FauxAudio.autorise = false;
+      sirene.play('critical');
+      await new Promise((r) => setTimeout(r, 10));
+
+      assert.equal(sirene.state, 'blocked');
     });
-
-    it('utilise un timbre perçant et un volume élevé', () => {
-      const { programmation } = jouer('critical');
-      // La dent de scie est bien plus riche en harmoniques qu'une sinusoïde :
-      // à volume égal, elle porte beaucoup plus loin.
-      assert.equal(programmation.timbre, 'sawtooth');
-      assert.ok(Math.max(...programmation.gains) >= 0.5, 'volume trop faible pour un open space');
-    });
-
-    it('pulse au lieu de tenir une note continue', () => {
-      const { programmation } = jouer('critical');
-      const niveaux = new Set(programmation.gains.map((g) => Math.round(g * 100)));
-      assert.ok(niveaux.size >= 2, 'aucune pulsation : le son est plat');
-    });
-  });
-
-  it('garde l’avertissement bref et plus discret que le critique', () => {
-    const critique = jouer('critical');
-    const avertissement = jouer('warning');
-
-    const dureeAvertissement = avertissement.programmation.fin - avertissement.programmation.debut;
-    const dureeCritique = critique.programmation.fin - critique.programmation.debut;
-
-    assert.ok(dureeAvertissement < dureeCritique / 2, 'un avertissement ne doit pas interrompre le plateau');
-    assert.ok(Math.max(...avertissement.programmation.gains) < Math.max(...critique.programmation.gains));
-  });
-
-  it('interrompt la sirène en cours plutôt que de superposer deux sons', () => {
-    programmations = [];
-    const sirene = new AlertSiren();
-    sirene.tryUnlock();
-
-    sirene.play('warning');
-    sirene.play('critical');
-
-    assert.equal(programmations.length, 2);
-  });
-
-  it('peut être coupée à la demande', () => {
-    const sirene = new AlertSiren();
-    sirene.tryUnlock();
-    sirene.play('critical');
-    assert.doesNotThrow(() => sirene.stop());
   });
 });

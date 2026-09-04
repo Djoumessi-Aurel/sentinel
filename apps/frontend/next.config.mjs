@@ -23,6 +23,9 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data:",
+              // La sirène est synthétisée puis exposée en URL blob: — sans cette
+              // ligne, `default-src` la bloque et le son ne part jamais.
+              "media-src 'self' blob:",
               "connect-src 'self' " + (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001') + ' ws: wss:',
               "object-src 'none'",
               "base-uri 'self'",

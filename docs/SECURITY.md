@@ -73,6 +73,12 @@ que l'appelant y a droit (référence directe non sécurisée).
 ## A05 — Mauvaise configuration de sécurité
 
 - `helmet` activé sur le backend (en-têtes de sécurité, `X-Powered-By` retiré).
+- CSP stricte côté frontend (`next.config.mjs`). Attention à l'effet de bord :
+  une directive omise retombe sur `default-src`, et le blocage est **silencieux**
+  côté fonctionnel — seul un message de console le signale. C'est ainsi que la
+  sirène d'alerte a cessé de fonctionner, ses sons étant exposés en `blob:` que
+  `default-src 'self'` refusait. Toute ressource générée à l'exécution doit donc
+  avoir sa directive explicite (ici `media-src 'self' blob:`).
 - **CORS restreint** à l'origine du frontend, via variable d'environnement.
   Jamais `origin: '*'` — y compris pour le WebSocket, dont l'origine est
   contrôlée de la même manière.

@@ -78,54 +78,49 @@ qui reste sur le tableau de bord.
 l'entendre coupe l'onglet dans son navigateur — la fonction existe partout et
 n'a pas à être réimplémentée ici.
 
-Reste une contrainte qu'aucun code ne peut lever : **la politique de lecture
-automatique est appliquée par le navigateur**, pas par l'application. Un
-`AudioContext` créé sans interaction préalable reste suspendu, et il n'existe
-aucune API permettant de s'en affranchir. On la contourne de la seule manière
-possible :
+#### Un élément `<audio>`, et non un `AudioContext` en lecture directe
 
-1. tentative de déblocage au montage, **synchrone et sans attente** — elle
-   réussit si le navigateur autorise déjà le son pour ce site ;
-2. `armOnFirstGesture` écoute le **premier geste, quel qu'il soit** (clic,
-   touche, contact tactile) et débloque le son à ce moment-là. Aucun bouton
-   dédié, aucune question posée ;
-3. tant que le son reste bloqué, un indicateur discret le signale — et cliquer
+Ce choix est le cœur du sujet, parce que les deux voies n'obéissent pas à la
+même politique de lecture automatique :
+
+| | `AudioContext` | élément `<audio>` |
+|---|---|---|
+| Condition | interaction utilisateur **dans chaque page chargée** | engagement mémorisé **par site** |
+| Après un rechargement | à refaire | conservé |
+| Écran d'open space | muet, personne n'y clique jamais | sonne |
+
+Une première implémentation utilisait `AudioContext` : elle exigeait un clic
+après chaque chargement de page, ce qui la rendait inutilisable sur un écran que
+personne ne touche. C'est d'ailleurs ainsi que fonctionne LTM, dont l'écran sonne
+sans aucune intervention.
+
+Le son est donc **synthétisé hors ligne** (`OfflineAudioContext`, qui ne sort pas
+sur les haut-parleurs et n'est soumis à aucune autorisation), **encodé en WAV**,
+puis joué par un `<audio>`. Aucun fichier à héberger, et le son reste disponible
+même si le backend est tombé — précisément le moment où on en a besoin.
+
+> **Piège de configuration.** Les sons sont exposés en URL `blob:`. La directive
+> `default-src 'self'` de la CSP couvre `media-src` et les bloque silencieusement
+> — le son ne partait jamais, sans autre trace qu'un message dans la console.
+> `next.config.mjs` déclare donc explicitement `media-src 'self' blob:`.
+
+#### Si le navigateur refuse malgré tout
+
+1. `prepare()` rend les sons et teste la lecture automatique en jouant un
+   silence *audible-capable* : l'élément n'est pas en sourdine, la politique
+   s'applique donc réellement, mais rien ne s'entend.
+2. En cas de refus, `armOnFirstGesture` écoute le **premier geste, quel qu'il
+   soit** (clic, touche, contact tactile). Aucun bouton dédié, aucune question.
+3. Tant que le son reste bloqué, un indicateur discret le signale — et cliquer
    dessus est lui-même le geste qui l'active. Une surveillance sonore qui
    échouerait en silence serait exactement ce que cette application est censée
    empêcher (`CLAUDE.md §5.4`).
 
-### Deux pièges, tous deux rencontrés en conditions réelles
-
-**Ne jamais attendre `resume()` hors d'un geste utilisateur.** La promesse peut
-ne jamais se résoudre. Une première version enchaînait la pose des écouteurs
-derrière ce `await` : les écouteurs n'étaient alors jamais posés, plus aucun clic
-ne pouvait débloquer le son, et l'indicateur restait affiché indéfiniment. Les
-écouteurs sont désormais posés **avant** toute tentative, de façon synchrone.
-
-**Ne pas conserver un contexte créé hors geste.** Chrome le marque comme bloqué,
-et le `resume()` d'un clic ultérieur ne le réveille pas de façon fiable — d'où
-le symptôme troublant d'un second onglet qui fonctionnait alors que le premier
-restait muet. Un contexte suspendu créé hors geste est donc refermé, et un
-contexte neuf est créé au premier geste.
-
-Ces deux comportements sont verrouillés par `test/alert-siren.test.mts`, dont un
-cas simule un `resume()` qui ne se résout jamais.
-
-**Pour un écran d'open space**, où personne n'interagit jamais avec la page, le
-plus simple est d'autoriser le son au niveau du navigateur, une fois pour
-toutes : dans Chrome, `chrome://settings/content/sound` → autoriser le site.
-L'étape 1 réussit alors dès l'ouverture, y compris après un redémarrage du
-poste ou un rechargement de la page.
-
-Le son lui-même est **synthétisé** par l'API Web Audio (`lib/alert-siren.ts`) :
-aucun fichier à héberger, et il reste disponible même si le backend est tombé —
-précisément le moment où on en a besoin. Une alerte critique produit un
-deux-tons alterné de 8 secondes, en dents de scie, à volume élevé : il doit
-faire lever la tête à tout le plateau, pas ressembler à une notification de
-téléphone. Un avertissement reste bref et discret. Les caractéristiques
-(durée, alternance, timbre, amplitude) sont verrouillées par
-`test/alert-siren.test.mts`.
-
+**Ne jamais enchaîner la pose des écouteurs derrière une promesse.** Une
+tentative de lecture peut rester en attente indéfiniment ; les écouteurs ne
+seraient alors jamais posés, plus aucun clic ne débloquerait le son, et
+l'indicateur resterait affiché pour toujours. Panne réellement rencontrée, et
+verrouillée par un test dans `test/alert-siren.test.mts`.
 
 ### 3.2 Quelles alertes font sonner la sirène
 
