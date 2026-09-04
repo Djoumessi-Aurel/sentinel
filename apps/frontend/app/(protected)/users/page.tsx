@@ -154,20 +154,35 @@ export default function PageUtilisateurs() {
                       <td className="px-4 py-2.5 text-slate-600">{dateCourte(u.lastLoginAt)}</td>
                       <td className="px-4 py-2.5">
                         {u.twoFactorEnabled ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!confirm(`Réinitialiser la double authentification de ${u.displayName} ? Cette personne devra la reconfigurer.`)) return;
-                              void agir(
-                                () => api.users.update(u.id, { twoFactorEnabled: false }),
-                                `La double authentification de ${u.username} a été réinitialisée.`,
-                              );
-                            }}
-                            title="Réinitialiser — en cas de téléphone perdu"
-                            className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700 transition hover:bg-emerald-100"
-                          >
-                            active
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">active</span>
+                            {/*
+                              Bouton nommé, et non un badge cliquable : l'action de
+                              retrait doit se voir. C'est le seul moyen d'enlever la
+                              double authentification d'un compte, et on l'a
+                              cherchée.
+                            */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    `Retirer la double authentification de ${u.displayName} ? Cette personne se reconnectera avec son seul mot de passe, et pourra la réactiver quand elle voudra.`,
+                                  )
+                                ) {
+                                  return;
+                                }
+                                void agir(
+                                  () => api.users.update(u.id, { twoFactorEnabled: false }),
+                                  `La double authentification de ${u.username} a été retirée.`,
+                                );
+                              }}
+                              title="Téléphone perdu, ou retrait à la demande"
+                              className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-600 transition hover:bg-slate-100"
+                            >
+                              Retirer
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
@@ -235,6 +250,12 @@ export default function PageUtilisateurs() {
               Les comptes qui ne l’ont pas encore configurée ne pourront rien faire d’autre que l’activer, à leur
               prochaine connexion. Les deux comptes techniques ne sont pas concernés : l’écran mural n’a personne pour
               saisir un code, et le compte de secours doit fonctionner quand tout le reste est cassé.
+            </span>
+            <span className="mt-1.5 block text-xs text-slate-500">
+              <strong>Décocher lève l’obligation, mais ne retire l’appairage de personne.</strong> Chacun garde le sien
+              et continue de saisir un code — c’est voulu : on ne retire pas silencieusement une protection que
+              quelqu’un a choisie. Pour l’enlever à une personne, utilisez « Retirer » dans la colonne 2FA ; chacun peut
+              aussi le faire depuis son écran <em>Mon compte</em>.
             </span>
           </span>
         </label>

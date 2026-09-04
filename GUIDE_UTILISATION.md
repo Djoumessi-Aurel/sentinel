@@ -416,9 +416,9 @@ administrateur actif. Ces refus évitent de se retrouver enfermé dehors.
 
 ### La double authentification
 
-La colonne **2FA** indique qui l'a activée. Cliquer sur « active » la **réinitialise** — c'est le
-geste à faire pour quelqu'un qui a perdu son téléphone et n'a plus ses codes de récupération. La
-personne se reconnectera avec son seul mot de passe, et pourra la reconfigurer.
+La colonne **2FA** indique qui l'a activée, et le bouton **Retirer** l'enlève — c'est le geste à
+faire pour quelqu'un qui a perdu son téléphone et n'a plus ses codes de récupération. La personne se
+reconnectera avec son seul mot de passe, et pourra la réactiver quand elle voudra.
 
 Vous ne pouvez pas l'activer à la place de quelqu'un : l'appairage suppose de scanner un QR code
 avec son propre téléphone.
@@ -427,6 +427,14 @@ La case **L'imposer à tous les comptes nominatifs** la rend obligatoire. Attent
 implique : au moment où vous la cochez, personne ne l'a encore configurée. Les comptes concernés
 pourront se connecter, mais leur session ne donnera accès **qu'à l'écran Mon compte**, le temps
 qu'ils l'activent. Prévenez avant de cocher.
+
+> **Décocher cette case ne retire l'appairage de personne.** C'est le point qui surprend le plus.
+> L'obligation est levée, mais chacun garde la double authentification qu'il a configurée et
+> continue de saisir un code à chaque connexion. C'est voulu : on ne retire pas silencieusement une
+> protection que quelqu'un a mise en place.
+>
+> Pour l'enlever à une personne, utilisez **Retirer** dans la colonne 2FA. Chacun peut aussi le
+> faire lui-même depuis son écran **Mon compte**.
 
 Les deux comptes techniques ne sont pas concernés : l'écran mural n'a personne pour saisir un code,
 et le compte de secours doit fonctionner quand tout le reste est cassé.

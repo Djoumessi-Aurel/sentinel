@@ -322,6 +322,16 @@ répond 403. La restriction disparaît dès l'appairage confirmé, sans reconnex
 
 C'est la différence entre un contrôle et une case à cocher décorative.
 
+**Lever l'obligation ne dépaire personne.** Repasser `twoFactorEnforced` à `false`
+supprime la contrainte pour les comptes qui n'ont rien configuré, mais laisse
+intact l'appairage de ceux qui en ont un : ils continuent de saisir un code.
+
+C'est délibéré — retirer d'office une protection que quelqu'un a mise en place
+serait une régression de sécurité décidée à sa place. En contrepartie, c'est
+contre-intuitif : l'écran d'administration doit donc le dire, et le bouton qui
+retire l'appairage d'un compte doit être visible plutôt que caché dans une
+infobulle.
+
 ### Réinitialisation
 
 Un administrateur réinitialise la 2FA de quelqu'un par

@@ -56,6 +56,29 @@ const verifier = (libelle, condition, detail = '') => {
   console.log(`  ${condition ? 'OK   ' : 'ECHEC'} ${libelle}${detail ? ` — ${detail}` : ''}`);
 };
 
+/**
+ * Les deux comptes dont le scénario a besoin, créés s'ils manquent.
+ *
+ * Sans cela, une exécution précédente qui les a nettoyés faisait **sauter
+ * silencieusement** des vérifications : le score baissait sans qu'aucun échec
+ * n'apparaisse, ce qui est pire qu'un test rouge. Un scénario fournit ses
+ * propres données.
+ */
+const ANNUAIRE_FICTIF = {
+  ctchoua: { displayName: 'Claire Tchoua', email: 'ctchoua@gie.local', role: 'superviseur' },
+  jkamga: { displayName: 'Jean Kamga', email: 'jkamga@gie.local', role: 'viewer' },
+};
+
+const assurerLesComptes = async () => {
+  for (const [username, donnees] of Object.entries(ANNUAIRE_FICTIF)) {
+    await prisma.user.upsert({
+      where: { username },
+      update: { enabled: true },
+      create: { username, ...donnees, createdBy: 'qa', updatedBy: 'qa' },
+    });
+  }
+};
+
 /** État de départ : la personne de test existe, sans double authentification. */
 const remiseAZero = async () => {
   await prisma.authSettings.upsert({
@@ -73,14 +96,10 @@ const remiseAZero = async () => {
   }
 };
 
+await assurerLesComptes();
 await remiseAZero();
 
 const utilisateurDeTest = await prisma.user.findUnique({ where: { username: PERSONNE } });
-if (!utilisateurDeTest) {
-  console.error(`L'utilisateur de test « ${PERSONNE} » n'est pas déclaré. Ajoutez-le avant de relancer.`);
-  await prisma.$disconnect();
-  process.exit(2);
-}
 
 console.log('--- Appairage ---');
 let r = await connexion(PERSONNE, 'peu importe en mode dev');
@@ -158,15 +177,12 @@ verifier('un administrateur peut imposer la double authentification', r.statut =
 
 // Une personne déclarée qui n'a pas encore appairé : session restreinte.
 const AUTRE = 'jkamga';
-const autre = await prisma.user.findUnique({ where: { username: AUTRE } });
-if (autre) {
+{
   cookieCourant = null;
   r = await connexion(AUTRE, 'peu importe en mode dev');
   verifier('sans appairage, la session s’ouvre en mode restreint', r.statut === 200 && r.donnees?.mustEnrollTwoFactor === true, JSON.stringify(r.donnees));
   verifier('elle ne donne accès à rien d’autre', (await appel('GET', '/applications')).statut === 403);
   verifier('sauf à l’appairage', (await appel('GET', '/auth/2fa/status')).statut === 200);
-} else {
-  console.log(`  (ignoré : « ${AUTRE} » n'est pas déclaré)`);
 }
 
 cookieCourant = null;
