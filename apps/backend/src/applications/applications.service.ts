@@ -148,6 +148,46 @@ export class ApplicationsService {
     await this.prisma.application.delete({ where: { id } });
   }
 
+  /**
+   * Émet un nouveau token pour une application existante.
+   *
+   * Indispensable en exploitation : le token n'étant affiché qu'à la création,
+   * un token perdu rendrait sinon l'application impossible à ré-équiper sans la
+   * supprimer et la recréer — donc sans perdre sa configuration et ses règles.
+   * Les anciens tokens restent valides tant qu'ils ne sont pas révoqués : un
+   * agent déjà en place continue d'émettre pendant le remplacement.
+   */
+  async issueToken(applicationId: string, label?: string): Promise<{ agentToken: string }> {
+    const application = await this.findRowOrThrow(applicationId);
+    const agentToken = await this.tokens.issue(applicationId, application.serverId, label);
+    return { agentToken };
+  }
+
+  /** Liste des tokens, **sans jamais leur valeur** : seule l'empreinte est stockée. */
+  async listTokens(applicationId: string): Promise<
+    Array<{ id: string; label: string | null; lastUsedAt: string | null; createdAt: string; revokedAt: string | null }>
+  > {
+    await this.findRowOrThrow(applicationId);
+    const rows = await this.prisma.ingestionAgentToken.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, label: true, lastUsedAt: true, createdAt: true, revokedAt: true },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      revokedAt: row.revokedAt?.toISOString() ?? null,
+    }));
+  }
+
+  /** Révoque un token : un serveur décommissionné se coupe sans redéploiement. */
+  async revokeToken(tokenId: string): Promise<void> {
+    await this.tokens.revoke(tokenId);
+  }
+
   /** Horodatage du dernier log reçu — base de la détection de silence. */
   async touchLastLogAt(applicationId: string, at: Date): Promise<void> {
     await this.prisma.application.update({

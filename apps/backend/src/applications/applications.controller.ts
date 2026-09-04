@@ -62,4 +62,25 @@ export class ApplicationsController {
   remove(@Param('id') id: string): Promise<void> {
     return this.applications.remove(id);
   }
+
+  /**
+   * Émet un nouveau token d'agent. Renvoyé en clair une seule fois, comme à la
+   * création : la base ne contient que son empreinte.
+   */
+  @Post(':id/tokens')
+  @HttpCode(HttpStatus.CREATED)
+  issueToken(@Param('id') id: string): Promise<{ agentToken: string }> {
+    return this.applications.issueToken(id, 'Token régénéré');
+  }
+
+  @Get(':id/tokens')
+  listTokens(@Param('id') id: string) {
+    return this.applications.listTokens(id);
+  }
+
+  @Delete('tokens/:tokenId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  revokeToken(@Param('tokenId') tokenId: string): Promise<void> {
+    return this.applications.revokeToken(tokenId);
+  }
 }

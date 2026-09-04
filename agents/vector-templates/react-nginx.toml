@@ -1,0 +1,42 @@
+# Agent de collecte Vector — type d'application : react-nginx
+# Généré depuis agents/vector-templates/react-nginx.toml par agents/install.sh.
+#
+# Deux fichiers de nature différente sont suivis (docs/LOG_PARSERS.md §4.4) :
+#   - error.log  : erreurs serveur, source d'alerte directe ;
+#   - access.log : pas une erreur en soi, mais la source du taux de 5xx exploité
+#     par l'analyseur `pattern-rate`.
+# Le parseur les distingue au format de la ligne, sans dépendre du nom de
+# fichier — que Vector ne transmet pas dans le corps envoyé.
+
+[sources.app_logs]
+type = "file"
+include = ["${LOG_PATH}"]
+read_from = "end"
+fingerprint.strategy = "device_and_inode"
+
+[transforms.to_payload]
+type = "remap"
+inputs = ["app_logs"]
+source = '''
+. = {
+  "applicationId": "${APPLICATION_ID}",
+  "server": "${SERVER_NAME}",
+  "lines": [{ "raw": string!(.message) }]
+}
+'''
+
+[sinks.backend]
+type = "http"
+inputs = ["to_payload"]
+uri = "${BACKEND_URL}/api/ingestion/logs"
+method = "post"
+encoding.codec = "json"
+# access.log est bien plus volumineux qu'un log applicatif : lots plus gros,
+# pour ne pas multiplier les requêtes sur un frontal chargé.
+batch.max_bytes = 2097152
+batch.timeout_secs = 2
+request.headers.Authorization = "Bearer ${AGENT_TOKEN}"
+request.retry_attempts = 5
+buffer.type = "disk"
+buffer.max_size = 536870912
+buffer.when_full = "drop_newest"

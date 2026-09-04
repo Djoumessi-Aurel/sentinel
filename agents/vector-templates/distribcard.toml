@@ -1,0 +1,44 @@
+# Agent de collecte Vector — type d'application : distribcard
+# Généré depuis agents/vector-templates/distribcard.toml par agents/install.sh.
+# Les ${...} sont substitués à l'installation ; ce fichier n'est jamais
+# déployé tel quel (voir docs/AGENT_SETUP.md).
+
+[sources.app_logs]
+type = "file"
+include = ["${LOG_PATH}"]
+# "end" : on ne rejoue pas l'historique du fichier au démarrage de l'agent.
+# Réingérer plusieurs mois de logs déclencherait des alertes sur des incidents
+# déjà clos, et noierait le flux temps réel.
+read_from = "end"
+# Les stack traces Java sont réassemblées côté backend, qui rattache toute ligne
+# ne commençant pas par une date à l'entrée précédente. On n'agrège donc pas ici.
+fingerprint.strategy = "device_and_inode"
+
+[transforms.to_payload]
+type = "remap"
+inputs = ["app_logs"]
+source = '''
+. = {
+  "applicationId": "${APPLICATION_ID}",
+  "server": "${SERVER_NAME}",
+  "lines": [{ "raw": string!(.message) }]
+}
+'''
+
+[sinks.backend]
+type = "http"
+inputs = ["to_payload"]
+uri = "${BACKEND_URL}/api/ingestion/logs"
+method = "post"
+encoding.codec = "json"
+# Un lot par requête plutôt qu'une requête par ligne : sur un serveur bavard,
+# l'un tient, l'autre non.
+batch.max_bytes = 1048576
+batch.timeout_secs = 2
+request.headers.Authorization = "Bearer ${AGENT_TOKEN}"
+# Les tentatives sont bornées : un backend indisponible ne doit pas faire
+# gonfler indéfiniment le tampon disque de l'agent.
+request.retry_attempts = 5
+buffer.type = "disk"
+buffer.max_size = 268435488
+buffer.when_full = "drop_newest"

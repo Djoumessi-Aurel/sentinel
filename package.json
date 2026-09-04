@@ -24,7 +24,8 @@
     "audit:all": "npm audit",
     "dev:mysql": "node scripts/dev-mysql.mjs start",
     "dev:mysql:stop": "node scripts/dev-mysql.mjs stop",
-    "dev:mysql:status": "node scripts/dev-mysql.mjs status"
+    "dev:mysql:status": "node scripts/dev-mysql.mjs status",
+    "simulate": "node scripts/simulate-agent.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

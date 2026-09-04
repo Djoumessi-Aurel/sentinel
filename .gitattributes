@@ -1,0 +1,13 @@
+# Normalisation des fins de ligne : LF dans le dépôt, quel que soit le poste.
+* text=auto eol=lf
+
+# Les scripts déposés sur les serveurs RHEL doivent impérativement rester en LF :
+# un CRLF rend un shebang inexécutable ("bad interpreter").
+*.sh text eol=lf
+*.toml text eol=lf
+
+# Binaires
+*.docx binary
+*.png binary
+*.jpg binary
+*.pdf binary
