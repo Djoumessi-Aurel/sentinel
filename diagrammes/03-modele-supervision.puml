@@ -1,0 +1,92 @@
+@startuml 03-modele-supervision
+!include _commun.puml
+
+title Modèle de données — parc supervisé et logs
+
+hide circle
+skinparam linetype ortho
+
+entity "Server" as server {
+  * id : uuid
+  --
+  name : varchar(120)
+  host : varchar(255)
+}
+
+entity "Application" as application {
+  * id : uuid
+  --
+  name : varchar(120)
+  type : varchar(64)
+  serverId : uuid
+  logPath : text
+  status : varchar(16)
+  lastLogAt : datetime
+  createdBy / updatedBy
+}
+
+entity "IngestionAgentToken" as token {
+  * id : uuid
+  --
+  applicationId : uuid
+  serverId : uuid
+  tokenHash : varchar(64) <<unique>>
+  label : varchar(190)
+  lastUsedAt : datetime
+  revokedAt : datetime
+}
+
+entity "MonitoredService" as service {
+  * id : uuid
+  --
+  applicationId : uuid
+  name : varchar(190)
+  checkType : varchar(32)
+  critical : boolean
+  checkInterval : int (s)
+  lastState : varchar(16)
+  lastCheckedAt : datetime
+}
+
+entity "ServiceStatusEvent" as serviceEvent {
+  * id : uuid
+  --
+  monitoredServiceId : uuid
+  previousState : varchar(16)
+  newState : varchar(16)
+  changedAt : datetime
+}
+
+entity "LogEntry" as log {
+  * id : uuid
+  --
+  applicationId : uuid
+  applicationType : varchar(64)
+  server : varchar(255)
+  timestamp : datetime
+  level : varchar(32)
+  message : text
+  raw : text
+  metadata : json
+}
+
+server      ||--o{ application
+application ||--o{ token
+application ||--o{ service
+service     ||--o{ serviceEvent
+application ||--o{ log
+
+note bottom of token
+  Seule l'empreinte du token est stockée.
+  Sa valeur n'est affichée qu'une fois,
+  à l'émission.
+end note
+
+note bottom of serviceEvent
+  Écrit sur **transition** seulement.
+  À une vérification toutes les 30 s,
+  journaliser chaque contrôle remplirait
+  la table sans rien apprendre.
+end note
+
+@enduml

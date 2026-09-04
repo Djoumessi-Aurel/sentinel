@@ -1,0 +1,38 @@
+@startuml 09-etats-alerte
+!include _commun.puml
+
+title Cycle de vie d'une alerte
+
+[*] --> Active : une règle se déclenche
+
+state Active {
+  [*] --> Notifiee
+  Notifiee --> EnCooldown : notification envoyée\nsur les canaux actifs
+  EnCooldown --> Notifiee : la règle se redéclenche\naprès le cooldown
+  EnCooldown --> EnCooldown : redéclenchement pendant\nle cooldown — regroupé,\naucune notification
+}
+
+state "Notifiée" as Notifiee
+state "En cooldown" as EnCooldown
+
+Active --> Resolue : acquittée par un\nsuperviseur ou un administrateur
+state "Résolue" as Resolue
+
+Resolue --> [*]
+
+note right of EnCooldown
+  Sans cooldown, une application qui
+  produit mille erreurs par minute
+  enverrait mille SMS. Le premier
+  déclenchement alerte, les suivants
+  sont regroupés.
+end note
+
+note bottom of Resolue
+  Une alerte résolue n'est jamais purgée
+  tant qu'elle est active : la purge de
+  rétention ne touche que les alertes
+  déjà résolues.
+end note
+
+@enduml

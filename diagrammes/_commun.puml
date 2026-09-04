@@ -1,0 +1,77 @@
+' Style commun à tous les diagrammes, aligné sur la charte du document Word
+' (bleu des titres : 1F3A5F). Inclus via !include _commun.puml
+!pragma layout smetana
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Aptos
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam roundCorner 4
+
+skinparam ArrowColor #1F3A5F
+skinparam ArrowFontColor #1F3A5F
+
+' Le nom de l'entité s'affiche dans le bandeau d'en-tête. On garde ce bandeau
+' CLAIR avec un texte foncé plutôt que l'inverse : selon le type de diagramme,
+' c'est tantôt skinparam class tantôt skinparam entity qui l'emporte, et un
+' bandeau foncé rendait le nom illisible sur les diagrammes en "hide members".
+skinparam class {
+  BorderColor #1F3A5F
+  BackgroundColor #FFFFFF
+  HeaderBackgroundColor #DCE3F0
+  FontColor #1F3A5F
+  FontStyle bold
+  AttributeFontColor #333333
+}
+
+skinparam entity {
+  BorderColor #1F3A5F
+  BackgroundColor #FFFFFF
+  HeaderBackgroundColor #DCE3F0
+  FontColor #1F3A5F
+  FontStyle bold
+}
+
+skinparam actor {
+  BorderColor #1F3A5F
+  BackgroundColor #F4F6FA
+}
+
+skinparam usecase {
+  BorderColor #1F3A5F
+  BackgroundColor #F4F6FA
+  FontColor #1F3A5F
+}
+
+skinparam component {
+  BorderColor #1F3A5F
+  BackgroundColor #F4F6FA
+  FontColor #1F3A5F
+}
+
+skinparam database {
+  BorderColor #1F3A5F
+  BackgroundColor #F4F6FA
+}
+
+skinparam sequence {
+  ArrowColor #1F3A5F
+  LifeLineBorderColor #1F3A5F
+  LifeLineBackgroundColor #F4F6FA
+  ParticipantBorderColor #1F3A5F
+  ParticipantBackgroundColor #F4F6FA
+  ParticipantFontColor #1F3A5F
+  ActorBorderColor #1F3A5F
+  ActorBackgroundColor #F4F6FA
+}
+
+skinparam state {
+  BorderColor #1F3A5F
+  BackgroundColor #F4F6FA
+  FontColor #1F3A5F
+}
+
+skinparam note {
+  BorderColor #B8860B
+  BackgroundColor #FFF8E1
+}

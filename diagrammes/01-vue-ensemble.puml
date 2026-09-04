@@ -1,0 +1,37 @@
+@startuml 01-vue-ensemble
+!include _commun.puml
+
+title Vue d'ensemble de l'architecture
+
+skinparam linetype ortho
+
+package "Serveurs applicatifs supervisés" #FDFDFD {
+  component "Agent Vector\n(logs)" as vector
+  component "check-services.sh\n(statut systemd)" as checks
+}
+
+package "Sentinel" #FDFDFD {
+  component "Backend NestJS" as backend
+  component "Interface Next.js" as frontend
+  database "MySQL 8\nmétier et configuration" as mysql
+  database "OpenSearch\nlogs (optionnel)" as opensearch
+}
+
+cloud "Active Directory" as ad
+component "SMTP / passerelle SMS" as notif
+
+vector    --> backend : POST /api/ingestion/logs\n(token d'agent)
+checks    --> backend : POST /api/services/status
+backend   --> mysql
+backend   --> opensearch : adaptateur LogStore
+backend   --> ad : bind LDAP
+backend   --> notif : courriel, SMS
+frontend  --> backend : REST + WebSocket\n(cookie de session)
+
+note bottom of opensearch
+  Le stockage des logs passe par un port :
+  MySQL en développement, OpenSearch en
+  production, sans changer le reste du code.
+end note
+
+@enduml

@@ -1,0 +1,63 @@
+@startuml 02-modele-donnees
+!include _commun.puml
+
+title Vue d'ensemble du modèle de données
+
+hide circle
+hide members
+skinparam linetype ortho
+
+package "Parc supervisé" #FDFDFD {
+  entity "Server" as server
+  entity "Application" as application
+  entity "IngestionAgentToken" as token
+  entity "MonitoredService" as service
+  entity "ServiceStatusEvent" as serviceEvent
+}
+
+package "Logs" #FDFDFD {
+  entity "LogEntry" as log
+}
+
+package "Alerting" #FDFDFD {
+  entity "AnalyzerRule" as rule
+  entity "AlertEvent" as alert
+}
+
+package "Configuration" #FDFDFD {
+  entity "GlobalConfig" as globalConfig
+  entity "AppConfig" as appConfig
+}
+
+package "Utilisateurs" #FDFDFD {
+  entity "User" as user
+}
+
+server      ||--o{ application
+application ||--o{ token
+application ||--o{ service
+service     ||--o{ serviceEvent
+application ||--o{ log
+application ||--o{ rule
+application ||--o{ alert
+rule        ||--o{ alert
+application ||--|| appConfig
+
+note right of globalConfig
+  Aucune relation vers AppConfig :
+  la configuration globale sert de
+  modèle, jamais de valeur de repli.
+  La propagation se fait par copie
+  explicite.
+end note
+
+note right of user
+  Table isolée : aucune clé étrangère
+  vers le reste du modèle. Les colonnes
+  d'audit (createdBy, updatedBy) portent
+  un identifiant, pas une référence — un
+  compte retiré ne doit pas emporter
+  l'historique qu'il a produit.
+end note
+
+@enduml

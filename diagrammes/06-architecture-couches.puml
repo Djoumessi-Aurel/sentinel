@@ -1,0 +1,72 @@
+@startuml 06-architecture-couches
+!include _commun.puml
+
+title Architecture applicative — ports et adaptateurs
+
+skinparam linetype ortho
+skinparam nodesep 12
+skinparam ranksep 40
+
+package "Interface (Next.js)" #FDFDFD {
+  component "Pages App Router" as pages
+  component "api-client / socket-client" as clients
+}
+
+package "Backend (NestJS)" #FDFDFD {
+  component "Contrôleurs + gardes" as controleurs
+  component "Services métier" as services
+}
+
+package "Ports (interfaces)" #F4F6FA {
+  component "LogStore" as portLog
+  component "Directory" as portAd
+  component "ParserRegistry" as portParser
+  component "AnalyzerRegistry" as portAnalyzer
+  component "Notifier" as portNotif
+}
+
+package "Adaptateurs" #FDFDFD {
+  component "MySqlLogStore\nOpenSearchLogStore" as adLog
+  component "LdapDirectory\nDevDirectory" as adAd
+  component "6 parseurs\nspring-boot, java, node…" as adParsers
+  component "Analyseurs\nlevel-threshold, silence…" as adAnalyzers
+  component "Email / SMS / WebSocket" as adNotif
+}
+
+pages --> clients
+clients --> controleurs : REST + WebSocket
+
+controleurs --> services
+
+services --> portLog
+services --> portAd
+services --> portParser
+services --> portAnalyzer
+services --> portNotif
+
+portLog      <|.. adLog
+portAd       <|.. adAd
+portParser   <|.. adParsers
+portAnalyzer <|.. adAnalyzers
+portNotif    <|.. adNotif
+
+' Notes flottantes reliées explicitement : ancrées par « note right of », elles
+' se retrouvaient toutes deux à gauche du diagramme, désignant le mauvais
+' composant.
+note as nParsers
+  Registre, jamais de branchement
+  conditionnel : un nouveau type
+  d'application s'ajoute sans
+  toucher au moteur.
+end note
+adParsers .. nParsers
+
+note as nLog
+  MySQL en développement,
+  OpenSearch en production.
+  Le code métier ne voit
+  que le port.
+end note
+adLog .. nLog
+
+@enduml

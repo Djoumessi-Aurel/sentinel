@@ -1,0 +1,83 @@
+@startuml 04-modele-alerting
+!include _commun.puml
+
+title Modèle de données — règles, alertes, configuration et utilisateurs
+
+hide circle
+skinparam linetype ortho
+
+entity "AnalyzerRule" as rule {
+  * id : uuid
+  --
+  applicationId : uuid
+  type : varchar(64)
+  name : varchar(190)
+  enabled : boolean
+  params : json
+  cooldown : varchar(16)
+  createdBy / updatedBy
+}
+
+entity "AlertEvent" as alert {
+  * id : uuid
+  --
+  applicationId : uuid
+  ruleId : uuid (nullable)
+  severity : varchar(16)
+  message : text
+  triggeredAt : datetime
+  resolvedAt : datetime
+  lastNotifiedAt : datetime
+  channelsNotified : json
+}
+
+entity "GlobalConfig" as globalConfig {
+  * id = "singleton"
+  --
+  displayColors : json
+  alertChannelsDefault : json
+  analyzerDefaults : json
+  serviceCheckDefaults : json
+  retention : json
+}
+
+entity "AppConfig" as appConfig {
+  * id : uuid
+  --
+  applicationId : uuid <<unique>>
+  displayColors : json
+  alertChannels : json
+  quietHours : json
+}
+
+entity "User" as user {
+  * id : uuid
+  --
+  username : varchar(190) <<unique>>
+  displayName : varchar(190)
+  email : varchar(255)
+  role : varchar(16)
+  enabled : boolean
+  lastLoginAt : datetime
+}
+
+rule ||--o{ alert
+
+note right of alert
+  La suppression d'une règle met ruleId
+  à NULL : l'alerte qu'elle a produite
+  reste dans l'historique.
+end note
+
+note right of user
+  Aucun mot de passe. Le rôle vaut
+  viewer, superviseur ou admin.
+end note
+
+note bottom of globalConfig
+  Modèle recopié à la création d'une
+  application, et par le bouton
+  « généraliser ». Jamais lu en repli.
+end note
+
+@enduml

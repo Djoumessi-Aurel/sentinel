@@ -1,0 +1,59 @@
+@startuml 08-sequence-authentification
+!include _commun.puml
+
+title Connexion — deux étapes, dans cet ordre
+
+actor Utilisateur as u
+participant "Page de connexion" as page
+participant "AuthController" as ctrl
+participant "AuthService" as service
+database "MySQL" as db
+participant "Directory\n(LDAP)" as ad
+
+u -> page : identifiant + mot de passe
+page -> ctrl : POST /api/auth/login
+activate ctrl
+ctrl -> service : login(dto)
+activate service
+
+alt Compte technique (sentineluser, sentineladmin)
+  service -> service : vérifie l'empreinte scrypt
+  note right
+    Aucun appel à l'annuaire : ces comptes
+    n'y existent pas. Ils restent utilisables
+    quand l'annuaire est en panne.
+  end note
+else Compte nominatif
+  service -> db : l'identifiant est-il déclaré et actif ?
+  db --> service : utilisateur ou rien
+
+  alt Inconnu ou désactivé
+    service --> ctrl : refus
+    note right
+      L'annuaire n'est **pas** appelé. Sinon une
+      campagne de devinettes contre Sentinel
+      verrouillerait des comptes du domaine.
+    end note
+  else Déclaré et actif
+    service -> ad : bind(identifiant@domaine, mot de passe)
+    ad --> service : accepté ou refusé
+    service -> db : met à jour lastLoginAt
+  end
+end
+
+service --> ctrl : utilisateur, ou refus
+deactivate service
+
+alt Succès
+  ctrl --> page : 200 + cookie sentinel_session\n(HttpOnly, SameSite=Lax)
+else Échec
+  ctrl --> page : 401 « Identifiants incorrects\nou accès non autorisé »
+  note right
+    Message identique dans tous les cas :
+    le distinguer révélerait quels
+    identifiants existent.
+  end note
+end
+deactivate ctrl
+
+@enduml

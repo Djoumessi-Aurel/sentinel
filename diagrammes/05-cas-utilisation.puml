@@ -1,0 +1,68 @@
+@startuml 05-cas-utilisation
+!include _commun.puml
+
+title Cas d'utilisation par rôle
+
+' Les droits sont tracés explicitement, rôle par rôle, plutôt que par
+' généralisation d'acteurs : la conception ne garantit aucune hiérarchie entre
+' les rôles, chaque droit y est déclaré séparément.
+
+left to right direction
+
+actor "Lecteur\n(écran d'open space)" as lecteur
+actor "Superviseur" as superviseur
+actor "Administrateur" as admin
+actor "Agent Vector" as agent
+actor "Active Directory" as ad
+
+rectangle Sentinel {
+  usecase "Consulter le tableau de bord" as uc_dashboard
+  usecase "Suivre les logs en temps réel" as uc_live
+  usecase "Rechercher dans l'historique" as uc_historique
+  usecase "Consulter les alertes" as uc_alertes
+
+  usecase "Résoudre une alerte" as uc_resoudre
+  usecase "Voir les chemins des\nfichiers de logs" as uc_chemins
+
+  usecase "Déclarer une application\net son serveur" as uc_appli
+  usecase "Gérer les services surveillés" as uc_services
+  usecase "Configurer les règles d'alerte" as uc_regles
+  usecase "Configurer l'affichage\net les canaux" as uc_config
+  usecase "Généraliser une configuration" as uc_generaliser
+  usecase "Gérer les utilisateurs" as uc_users
+
+  usecase "Envoyer des logs" as uc_ingestion
+  usecase "Remonter le statut\ndes services" as uc_statut
+  usecase "Vérifier un mot de passe" as uc_bind
+}
+
+lecteur --> uc_dashboard
+lecteur --> uc_live
+lecteur --> uc_historique
+lecteur --> uc_alertes
+
+superviseur --> uc_dashboard
+superviseur --> uc_live
+superviseur --> uc_historique
+superviseur --> uc_alertes
+superviseur --> uc_resoudre
+superviseur --> uc_chemins
+
+admin --> uc_dashboard
+admin --> uc_live
+admin --> uc_historique
+admin --> uc_alertes
+admin --> uc_resoudre
+admin --> uc_chemins
+admin --> uc_appli
+admin --> uc_services
+admin --> uc_regles
+admin --> uc_config
+admin --> uc_generaliser
+admin --> uc_users
+
+agent --> uc_ingestion
+agent --> uc_statut
+ad    --> uc_bind
+
+@enduml

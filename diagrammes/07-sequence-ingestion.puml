@@ -1,0 +1,48 @@
+@startuml 07-sequence-ingestion
+!include _commun.puml
+
+title D'une ligne de log à une alerte
+
+actor "Agent Vector" as agent
+participant "IngestionController" as ctrl
+participant "ParserRegistry" as parser
+participant "RedactionService" as redaction
+participant "LogStore" as store
+participant "AnalyzerRegistry" as analyzers
+participant "AlertingService" as alerting
+participant "Notifier" as notif
+actor "Interface" as ui
+
+agent -> ctrl : POST /api/ingestion/logs\nBearer <token d'agent>
+activate ctrl
+ctrl -> ctrl : vérifie l'empreinte du token\net l'application rattachée
+ctrl -> parser : parse(lignes brutes)
+parser --> ctrl : LogEntry[] (niveau, message, métadonnées)
+ctrl -> redaction : masque les données sensibles
+note right of redaction
+  Avant persistance, pas à l'affichage :
+  une donnée écrite en clair le reste
+  dans les sauvegardes.
+end note
+redaction --> ctrl : LogEntry[] assainies
+ctrl -> store : write(entries)
+ctrl --> agent : 202 Accepted
+deactivate ctrl
+
+note over ctrl, analyzers
+  L'ingestion répond sans attendre l'évaluation :
+  un moteur de règles lent ne doit pas faire
+  perdre des logs.
+end note
+
+ctrl ->> analyzers : évaluation en flux
+activate analyzers
+analyzers -> alerting : règle déclenchée
+activate alerting
+alerting -> alerting : cooldown, heures creuses,\nregroupement
+alerting -> notif : canaux actifs\n(visuel, son, courriel, SMS)
+notif -> ui : WebSocket « alert:new »
+deactivate alerting
+deactivate analyzers
+
+@enduml
