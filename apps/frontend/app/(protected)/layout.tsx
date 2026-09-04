@@ -11,6 +11,7 @@ import { AlertCenter } from '@/components/alert-center';
  */
 const NAV = [
   { href: '/dashboard', label: 'Tableau de bord' },
+  { href: '/applications', label: 'Applications' },
   { href: '/alerts', label: 'Alertes' },
   { href: '/config/global', label: 'Configuration' },
   { href: '/config/generalize', label: 'Généraliser' },

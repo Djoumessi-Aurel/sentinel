@@ -24,6 +24,7 @@ const fakeStore = (counter: (criteria: LogCountCriteria) => number): LogStore =>
   write: jest.fn(),
   search: jest.fn(),
   count: jest.fn(async (criteria: LogCountCriteria) => counter(criteria)),
+  purge: jest.fn(async () => 0),
 });
 
 describe('LevelThresholdAnalyzer', () => {

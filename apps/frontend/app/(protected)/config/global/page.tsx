@@ -19,6 +19,7 @@ export default function GlobalConfigPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [purge, setPurge] = useState<string | null>(null);
 
   useEffect(() => {
     void api.config
@@ -48,6 +49,7 @@ export default function GlobalConfigPage() {
         displayColors: config.displayColors,
         alertChannelsDefault: config.alertChannelsDefault,
         serviceCheckDefaults: config.serviceCheckDefaults,
+        retention: config.retention,
       });
       setConfig(updated);
       setMessage('Configuration globale enregistrée. Les applications existantes sont inchangées.');
@@ -55,6 +57,21 @@ export default function GlobalConfigPage() {
       setError(cause instanceof ApiError ? cause.message : 'Enregistrement impossible');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const purgerMaintenant = async () => {
+    setPurge('en cours');
+    try {
+      const { report } = await api.retention.purge();
+      setPurge(
+        report
+          ? `Purge effectuée : ${report.logs} log(s), ${report.resolvedAlerts} alerte(s) résolue(s), ${report.serviceEvents} transition(s) supprimée(s).`
+          : 'Une purge est déjà en cours.',
+      );
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'Purge impossible');
+      setPurge(null);
     }
   };
 
@@ -185,6 +202,49 @@ export default function GlobalConfigPage() {
         </div>
       </section>
 
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-surface-raised p-4">
+        <div>
+          <h2 className="font-medium">Rétention des données</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Purge automatique chaque nuit à 3 h. Trois durées distinctes : les logs sont volumineux et perdent vite leur
+            intérêt, l’historique des alertes sert au bilan, les transitions de service racontent la fiabilité sur la
+            durée. Les alertes <strong>encore actives</strong> ne sont jamais purgées, quel que soit leur âge.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-4 text-sm">
+          <ChampJours
+            label="Logs"
+            value={config.retention.logsDays}
+            onChange={(logsDays) => setConfig({ ...config, retention: { ...config.retention, logsDays } })}
+          />
+          <ChampJours
+            label="Alertes résolues"
+            value={config.retention.resolvedAlertsDays}
+            onChange={(resolvedAlertsDays) =>
+              setConfig({ ...config, retention: { ...config.retention, resolvedAlertsDays } })
+            }
+          />
+          <ChampJours
+            label="Transitions de service"
+            value={config.retention.serviceEventsDays}
+            onChange={(serviceEventsDays) =>
+              setConfig({ ...config, retention: { ...config.retention, serviceEventsDays } })
+            }
+          />
+          <button
+            type="button"
+            onClick={() => void purgerMaintenant()}
+            disabled={purge !== null}
+            className="self-end rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+            title="Applique la rétention immédiatement, sans attendre le passage de la nuit"
+          >
+            {purge === 'en cours' ? 'Purge…' : 'Purger maintenant'}
+          </button>
+        </div>
+        {purge && purge !== 'en cours' && <p className="text-xs text-emerald-700">{purge}</p>}
+      </section>
+
       <section className="rounded-lg border border-slate-200 bg-surface-raised p-4">
         <h2 className="mb-2 font-medium">Analyseurs créés pour toute nouvelle application</h2>
         <ul className="space-y-1 text-sm text-slate-600">
@@ -209,6 +269,22 @@ export default function GlobalConfigPage() {
         {message && <span className="text-sm text-emerald-600">{message}</span>}
       </div>
     </div>
+  );
+}
+
+function ChampJours({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return (
+    <label>
+      <span className="mb-1 block text-slate-600">{label} (jours)</span>
+      <input
+        type="number"
+        min={1}
+        max={3650}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-28 rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
+      />
+    </label>
   );
 }
 

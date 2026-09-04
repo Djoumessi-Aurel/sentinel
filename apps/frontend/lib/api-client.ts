@@ -137,6 +137,14 @@ export const api = {
       }),
   },
 
+  retention: {
+    purge: () =>
+      request<{ status: 'ok' | 'busy'; report: { logs: number; resolvedAlerts: number; serviceEvents: number } | null }>(
+        '/retention/purge',
+        { method: 'POST' },
+      ),
+  },
+
   logs: {
     search: (query: Partial<SearchLogsQuery>) =>
       request<Paginated<StoredLogEntry>>(`/logs${toQuery(query as Record<string, string | number | undefined>)}`),

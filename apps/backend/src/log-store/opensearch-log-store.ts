@@ -150,6 +150,17 @@ export class OpenSearchLogStore implements LogStore {
     return payload.count;
   }
 
+  async purge(olderThan: Date): Promise<number> {
+    // `_delete_by_query` plutôt qu'une politique ILM : la rétention est un
+    // réglage modifiable depuis l'interface, appliqué sans redéploiement ni
+    // reconfiguration du cluster (docs/DATA_MODEL.md §4).
+    const response = await this.request('POST', `/${this.index}/_delete_by_query?conflicts=proceed&refresh=false`, {
+      query: { range: { timestamp: { lt: olderThan.toISOString() } } },
+    });
+    const payload = (await response.json()) as { deleted?: number };
+    return payload.deleted ?? 0;
+  }
+
   private async request(
     method: string,
     path: string,

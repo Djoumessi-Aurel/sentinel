@@ -17,6 +17,7 @@ import { LogsQueryModule } from './logs-query/logs-query.module';
 import { MonitoredServicesModule } from './monitored-services/monitored-services.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RedactionModule } from './redaction/redaction.module';
+import { RetentionModule } from './retention/retention.module';
 import { ServersModule } from './servers/servers.module';
 import { SettingsModule } from './settings/settings.module';
 
@@ -52,6 +53,7 @@ import { SettingsModule } from './settings/settings.module';
     IngestionModule,
     LogsQueryModule,
     RealtimeModule,
+    RetentionModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: AgentAwareThrottlerGuard }],

@@ -66,6 +66,10 @@ model GlobalConfig {
   alertChannelsDefault Json
   analyzerDefaults     Json
   serviceCheckDefaults Json
+  // Politique de rétention (docs/DATA_MODEL.md §4). Nullable : les
+  // configurations créées avant son introduction retombent sur les valeurs par
+  // défaut, sans migration de données.
+  retention            Json?
   updatedAt            DateTime @updatedAt
   updatedBy            String?  @db.VarChar(64)
 

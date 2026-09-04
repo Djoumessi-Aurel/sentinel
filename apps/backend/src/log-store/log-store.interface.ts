@@ -35,6 +35,15 @@ export interface LogStore {
 
   /** Compte les entrées correspondant aux critères — base des analyseurs. */
   count(criteria: LogCountCriteria): Promise<number>;
+
+  /**
+   * Supprime les entrées antérieures à une date. Retourne le nombre supprimé.
+   *
+   * Sans purge, le stockage croît indéfiniment : la question n'est pas de savoir
+   * *si* le disque se remplira, mais quand — et l'outil censé détecter les
+   * pannes tomberait alors lui-même (docs/DATA_MODEL.md §4).
+   */
+  purge(olderThan: Date): Promise<number>;
 }
 
 /** Jeton d'injection NestJS : on injecte l'interface, jamais une implémentation. */

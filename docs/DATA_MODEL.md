@@ -192,9 +192,28 @@ dépendre de plusieurs services (ex. `filemanager` → `file-manager.service`,
   ensuite service par service, même logique de copie explicite que le reste
   de la config (voir `CONFIG_MANAGEMENT.md`).
 
-## 4. Politique de rétention (ILM OpenSearch)
+## 4. Politique de rétention — livrée
 
-À définir en config globale (Phase 3) : nombre de jours en index "chaud"
-(recherche rapide), puis purge ou passage en froid/archive. Valeur par défaut
-recommandée pour démarrer : 90 jours, ajustable sans redéploiement (paramètre
-stocké en base, appliqué par un job qui met à jour la policy ILM).
+`GlobalConfig.retention` porte **trois durées distinctes**, parce que les trois
+natures de données n'ont ni le même volume ni la même valeur dans le temps :
+
+| Donnée | Défaut | Pourquoi |
+|---|---|---|
+| `logsDays` | 90 j | massifs, perdent vite leur intérêt |
+| `resolvedAlertsDays` | 365 j | peu volumineux, servent au bilan annuel |
+| `serviceEventsDays` | 365 j | rares, racontent la fiabilité d'un service sur la durée |
+
+Appliquée par `RetentionService`, chaque nuit à 3 h — heure creuse choisie
+délibérément : une suppression massive sollicite le stockage, et la lancer en
+journée ralentirait l'ingestion et les recherches au moment où l'outil sert le
+plus. `POST /api/retention/purge` permet de l'appliquer immédiatement, ce qui
+évite d'attendre le lendemain pour vérifier qu'un réglage a bien été pris en
+compte.
+
+**Les alertes encore actives ne sont jamais purgées**, quel que soit leur âge :
+une alerte non résolue décrit un incident en cours.
+
+Côté stockage des logs, la purge passe par le port `LogStore` : `DELETE` Prisma
+pour l'adaptateur MySQL, `_delete_by_query` pour OpenSearch. Ce dernier a été
+préféré à une politique ILM afin que la rétention reste un réglage modifiable
+depuis l'interface, sans reconfiguration du cluster ni redéploiement.

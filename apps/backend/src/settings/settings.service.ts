@@ -3,12 +3,14 @@ import { Prisma } from '@prisma/client';
 import {
   DEFAULT_ALERT_CHANNELS_DEFAULT,
   DEFAULT_DISPLAY_COLORS,
+  DEFAULT_RETENTION,
   DEFAULT_SERVICE_CHECK_DEFAULTS,
   alertChannelsDefaultSchema,
   alertChannelsSchema,
   analyzerDefaultSchema,
   displayColorsSchema,
   quietHoursSchema,
+  retentionSchema,
   serviceCheckDefaultsSchema,
   type AlertChannels,
   type AnalyzerDefault,
@@ -71,6 +73,7 @@ export class SettingsService {
           alertChannelsDefault: DEFAULT_ALERT_CHANNELS_DEFAULT as unknown as Prisma.InputJsonValue,
           analyzerDefaults: BUILTIN_ANALYZER_DEFAULTS as unknown as Prisma.InputJsonValue,
           serviceCheckDefaults: DEFAULT_SERVICE_CHECK_DEFAULTS as unknown as Prisma.InputJsonValue,
+          retention: DEFAULT_RETENTION as unknown as Prisma.InputJsonValue,
         },
       }));
 
@@ -80,6 +83,10 @@ export class SettingsService {
       alertChannelsDefault: parseJson(alertChannelsDefaultSchema, row.alertChannelsDefault, 'alertChannelsDefault'),
       analyzerDefaults: parseJson(z.array(analyzerDefaultSchema), row.analyzerDefaults, 'analyzerDefaults'),
       serviceCheckDefaults: parseJson(serviceCheckDefaultsSchema, row.serviceCheckDefaults, 'serviceCheckDefaults'),
+      // Colonne ajoutée après coup : une configuration créée avant la mise en
+      // place de la rétention n'en porte pas, on retombe alors sur les valeurs
+      // par défaut plutôt que d'échouer au chargement.
+      retention: row.retention === null ? DEFAULT_RETENTION : parseJson(retentionSchema, row.retention, 'retention'),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -103,6 +110,7 @@ export class SettingsService {
         ...(dto.serviceCheckDefaults
           ? { serviceCheckDefaults: dto.serviceCheckDefaults as unknown as Prisma.InputJsonValue }
           : {}),
+        ...(dto.retention ? { retention: dto.retention as unknown as Prisma.InputJsonValue } : {}),
         updatedBy: user.id,
       },
     });

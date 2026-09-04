@@ -125,7 +125,7 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 
 ## 7. Ordre de développement recommandé (roadmap)
 
-**Phase 1 — MVP**
+**Phase 1 — MVP** — livrée
 1. Squelette monorepo + Docker Compose (MySQL, OpenSearch, backend, frontend)
 2. Modèle de données `Application`, `Server`, `GlobalConfig`, `AppConfig`
 3. Un agent Vector de test envoyant des logs vers un endpoint d'ingestion HTTP du backend
@@ -136,7 +136,7 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 8. `MonitoredService` + script de vérification de statut (systemd), règles
    `service-status`/`service-silence`, badge de statut agrégé par appli
 
-**Phase 2**
+**Phase 2** — livrée
 1. Parseurs Java simple, Node/PM2, React/Nginx
 2. Analyseurs personnalisés (règles à seuil, comme l'exemple distribcard)
 3. Recherche historique par plage de dates
@@ -144,12 +144,14 @@ duplication de DTO et garantit la cohérence des contrats API/WebSocket.
 5. Écran de configuration globale + config par appli
 6. Bouton "généraliser les configs"
 
-**Phase 3**
+**Phase 3** — livrée
 1. Détection de silence (watchdog par appli)
 2. Anti-spam / cooldown / regroupement d'alertes
 3. Heures creuses (mise en pause de canaux selon horaire)
-4. Masquage de données sensibles dans les logs affichés
-5. Politique de rétention / purge automatique
+4. Masquage de données sensibles, appliqué **avant persistance** et non
+   seulement à l'affichage : une donnée écrite en clair le reste dans les
+   sauvegardes (voir `SECURITY.md` A09)
+5. Politique de rétention / purge automatique (voir `DATA_MODEL.md §4`)
 6. Bouton de test d'alerte (déclenchement manuel par canal)
 
 **Phase 4 (plus tard, hors périmètre immédiat)**

@@ -71,12 +71,39 @@ export const serviceCheckDefaultsSchema = z.object({
 
 export type ServiceCheckDefaults = z.infer<typeof serviceCheckDefaultsSchema>;
 
+/**
+ * Politique de rétention (docs/DATA_MODEL.md §4).
+ *
+ * Trois durées distinctes, parce que les trois natures de données n'ont ni le
+ * même volume ni la même valeur dans le temps : les logs sont massifs et
+ * perdent vite leur intérêt, l'historique des alertes est petit et sert au
+ * bilan, les transitions de service sont rares et racontent la fiabilité d'un
+ * service sur la durée.
+ */
+export const retentionSchema = z.object({
+  /** Jours de conservation des logs. */
+  logsDays: z.number().int().min(1).max(3650),
+  /** Jours de conservation des alertes **résolues**. Les alertes actives ne sont jamais purgées. */
+  resolvedAlertsDays: z.number().int().min(1).max(3650),
+  /** Jours de conservation des transitions d'état de service. */
+  serviceEventsDays: z.number().int().min(1).max(3650),
+});
+
+export type Retention = z.infer<typeof retentionSchema>;
+
+export const DEFAULT_RETENTION: Retention = {
+  logsDays: 90,
+  resolvedAlertsDays: 365,
+  serviceEventsDays: 365,
+};
+
 export const globalConfigSchema = z.object({
   id: z.literal('singleton'),
   displayColors: displayColorsSchema,
   alertChannelsDefault: alertChannelsDefaultSchema,
   analyzerDefaults: z.array(analyzerDefaultSchema),
   serviceCheckDefaults: serviceCheckDefaultsSchema,
+  retention: retentionSchema,
   updatedAt: z.string().datetime(),
 });
 
@@ -99,6 +126,7 @@ export const updateGlobalConfigSchema = z
     alertChannelsDefault: alertChannelsDefaultSchema,
     analyzerDefaults: z.array(analyzerDefaultSchema),
     serviceCheckDefaults: serviceCheckDefaultsSchema,
+    retention: retentionSchema,
   })
   .partial();
 

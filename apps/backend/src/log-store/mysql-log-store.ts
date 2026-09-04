@@ -89,6 +89,11 @@ export class MysqlLogStore implements LogStore {
     return this.prisma.logEntry.count({ where });
   }
 
+  async purge(olderThan: Date): Promise<number> {
+    const { count } = await this.prisma.logEntry.deleteMany({ where: { timestamp: { lt: olderThan } } });
+    return count;
+  }
+
   private buildWhere(query: SearchLogsQuery): Prisma.LogEntryWhereInput {
     const where: Prisma.LogEntryWhereInput = {};
 
