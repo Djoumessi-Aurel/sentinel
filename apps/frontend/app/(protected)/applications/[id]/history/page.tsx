@@ -92,7 +92,7 @@ export default function HistoryPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Link href={`/applications/${applicationId}/live`} className="text-sm text-slate-500 hover:text-slate-300">
+        <Link href={`/applications/${applicationId}/live`} className="text-sm text-slate-500 hover:text-slate-700">
           ← {application?.name ?? 'Application'}
         </Link>
         <h1 className="text-xl font-semibold tracking-tight">Recherche historique</h1>
@@ -103,32 +103,32 @@ export default function HistoryPage() {
           event.preventDefault();
           void search(1);
         }}
-        className="flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-surface-raised p-4 text-sm"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-surface-raised p-4 text-sm"
       >
         <label>
-          <span className="mb-1 block text-slate-400">Du</span>
+          <span className="mb-1 block text-slate-600">Du</span>
           <input
             type="datetime-local"
             value={range.from}
             onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
           />
         </label>
         <label>
-          <span className="mb-1 block text-slate-400">Au</span>
+          <span className="mb-1 block text-slate-600">Au</span>
           <input
             type="datetime-local"
             value={range.to}
             onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
           />
         </label>
         <label>
-          <span className="mb-1 block text-slate-400">Niveau</span>
+          <span className="mb-1 block text-slate-600">Niveau</span>
           <select
             value={level}
             onChange={(event) => setLevel(event.target.value)}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
           >
             <option value="">Tous</option>
             {KNOWN_LOG_LEVELS.map((item) => (
@@ -139,24 +139,24 @@ export default function HistoryPage() {
           </select>
         </label>
         <label className="flex-1 min-w-[220px]">
-          <span className="mb-1 block text-slate-400">Contient</span>
+          <span className="mb-1 block text-slate-600">Contient</span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="texte recherché dans le message"
-            className="w-full rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200 placeholder:text-slate-600"
+            className="w-full rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800 placeholder:text-slate-400"
           />
         </label>
         <button
           type="submit"
           disabled={loading}
-          className="rounded bg-sky-600 px-4 py-1.5 font-medium text-white hover:bg-sky-500 disabled:opacity-50"
+          className="rounded bg-sky-700 px-4 py-1.5 font-medium text-white hover:bg-sky-800 disabled:opacity-50"
         >
           {loading ? 'Recherche…' : 'Rechercher'}
         </button>
       </form>
 
-      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>}
+      {error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>
@@ -167,7 +167,7 @@ export default function HistoryPage() {
             type="button"
             disabled={page <= 1 || loading}
             onClick={() => void search(page - 1)}
-            className="rounded border border-white/10 px-2 py-1 disabled:opacity-40"
+            className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
           >
             Précédent
           </button>
@@ -175,7 +175,7 @@ export default function HistoryPage() {
             type="button"
             disabled={page >= lastPage || loading}
             onClick={() => void search(page + 1)}
-            className="rounded border border-white/10 px-2 py-1 disabled:opacity-40"
+            className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
           >
             Suivant
           </button>

@@ -126,16 +126,20 @@ export type GeneralizeConfigDto = z.infer<typeof generalizeConfigSchema>;
  * l'affichage (docs/CONFIG_MANAGEMENT.md §1).
  */
 export const DEFAULT_DISPLAY_COLORS: DisplayColors = {
-  background: '#0f172a',
-  text: '#e2e8f0',
+  // Fond clair : l'application est affichée en permanence sur un grand écran
+  // d'open space. Un fond sombre en plein jour fatigue les yeux et se lit mal à
+  // distance. Chaque couleur de niveau tient le ratio de contraste WCAG AA
+  // (4,5:1) sur ce fond — un niveau illisible à trois mètres ne sert à rien.
+  background: '#ffffff',
+  text: '#1e293b',
   levelColors: {
     TRACE: '#64748b',
-    DEBUG: '#94a3b8',
-    INFO: '#38bdf8',
-    WARN: '#fbbf24',
-    ERROR: '#f87171',
-    FATAL: '#ef4444',
-    UNKNOWN: '#cbd5e1',
+    DEBUG: '#475569',
+    INFO: '#0369a1',
+    WARN: '#b45309',
+    ERROR: '#be123c',
+    FATAL: '#9f1239',
+    UNKNOWN: '#334155',
   },
 };
 

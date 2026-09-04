@@ -137,12 +137,23 @@ Namespace `/realtime`. Le client s'abonne par appli :
 ```
 Client → Server:  join { applicationId }
 Client → Server:  leave { applicationId }
+Client → Server:  joinGlobalAlerts          abonnement aux alertes de TOUT le parc
+Client → Server:  leaveGlobalAlerts
 
 Server → Client:  log:new     { applicationId, entry: LogEntry }
-Server → Client:  alert:new   { applicationId, alert: AlertEvent }
-Server → Client:  alert:resolved { applicationId, alertId }
-Server → Client:  service:status { applicationId, serviceId, serviceName, previousState, newState }
+Server → Client:  alert:new   { applicationId, applicationName, alert: AlertEvent, health }
+Server → Client:  alert:resolved { applicationId, alertId, health }
+Server → Client:  service:status { applicationId, serviceId, serviceName, previousState, newState, health }
 ```
+
+**Flux global d'alertes.** Le filtrage par application vaut pour les *logs*,
+dont le volume interdit une diffusion non filtrée. Les alertes, elles, sont
+rares — quelques dizaines par jour — et doivent parvenir au poste quel que soit
+l'écran affiché : sans cela, une alerte n'est signalée que si quelqu'un se
+trouve précisément sur la page temps réel de l'application concernée, ce qui
+n'arrive presque jamais. Les événements `alert:new` et `alert:resolved` sont
+donc émis à la fois dans la room de l'application et dans `alerts:all`. Un
+client abonné aux deux ne les reçoit qu'une seule fois.
 
 Le client s'abonne aux applis affichées dans l'écran courant (pas de
 diffusion globale non filtrée, pour limiter la charge côté navigateur si

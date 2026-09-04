@@ -5,11 +5,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Palette de l'interface. Les couleurs des *logs*, elles, ne viennent
-        // jamais d'ici : elles sont lues dans AppConfig.displayColors
-        // (docs/CLAUDE.md §8).
-        surface: { DEFAULT: '#0f172a', raised: '#1e293b', border: '#334155' },
-        health: { ok: '#22c55e', warning: '#fbbf24', critical: '#ef4444', silent: '#94a3b8' },
+        // Thème clair : l'application est affichée en continu sur un grand
+        // écran d'open space, en plein jour. Le fond légèrement gris fait
+        // ressortir les cartes blanches sans créer d'éblouissement.
+        surface: { DEFAULT: '#f1f5f9', raised: '#ffffff', sunken: '#e2e8f0', border: '#cbd5e1' },
+        health: { ok: '#15803d', warning: '#b45309', critical: '#be123c', silent: '#64748b' },
       },
       fontFamily: {
         mono: ['ui-monospace', 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'monospace'],

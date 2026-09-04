@@ -73,31 +73,31 @@ export default function ServicesPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href={`/applications/${applicationId}/live`} className="text-sm text-slate-500 hover:text-slate-300">
+        <Link href={`/applications/${applicationId}/live`} className="text-sm text-slate-500 hover:text-slate-700">
           ← {application?.name ?? 'Application'}
         </Link>
         <h1 className="text-xl font-semibold tracking-tight">Services surveillés</h1>
       </div>
 
-      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>}
+      {error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      <form onSubmit={add} className="flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-surface-raised p-4">
+      <form onSubmit={add} className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-surface-raised p-4">
         <label className="flex-1 min-w-[240px] text-sm">
-          <span className="mb-1 block text-slate-400">Nom du service</span>
+          <span className="mb-1 block text-slate-600">Nom du service</span>
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="httpd.service, api, mobileapi.jar…"
-            className="w-full rounded border border-white/10 bg-surface px-3 py-1.5 font-mono text-sm text-slate-200 placeholder:text-slate-600"
+            className="w-full rounded border border-slate-200 bg-surface px-3 py-1.5 font-mono text-sm text-slate-800 placeholder:text-slate-400"
           />
         </label>
 
         <label className="text-sm">
-          <span className="mb-1 block text-slate-400">Type de vérification</span>
+          <span className="mb-1 block text-slate-600">Type de vérification</span>
           <select
             value={checkType}
             onChange={(event) => setCheckType(event.target.value)}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-sm text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-sm text-slate-800"
           >
             {KNOWN_CHECK_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -107,7 +107,7 @@ export default function ServicesPage() {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 pb-1.5 text-sm text-slate-300">
+        <label className="flex items-center gap-2 pb-1.5 text-sm text-slate-700">
           <input type="checkbox" checked={critical} onChange={(event) => setCritical(event.target.checked)} />
           Critique
         </label>
@@ -115,7 +115,7 @@ export default function ServicesPage() {
         <button
           type="submit"
           disabled={busy}
-          className="rounded bg-sky-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
+          className="rounded bg-sky-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-50"
         >
           Ajouter
         </button>
@@ -126,7 +126,7 @@ export default function ServicesPage() {
         l’application en rouge — utile pour un composant annexe comme l’updater de LTM.
       </p>
 
-      <div className="overflow-hidden rounded-lg border border-white/10">
+      <div className="overflow-hidden rounded-lg border border-slate-200">
         <table className="w-full text-sm">
           <thead className="bg-surface-raised text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -137,7 +137,7 @@ export default function ServicesPage() {
               <th className="px-4 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-slate-200">
             {services.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
@@ -146,12 +146,12 @@ export default function ServicesPage() {
               </tr>
             )}
             {services.map((service) => (
-              <tr key={service.id} className="bg-surface-raised/40">
+              <tr key={service.id} className="bg-surface-raised">
                 <td className="px-4 py-2 font-mono">
                   {service.name}
-                  {!service.critical && <span className="ml-2 text-xs text-slate-600">non critique</span>}
+                  {!service.critical && <span className="ml-2 text-xs text-slate-400">non critique</span>}
                 </td>
-                <td className="px-4 py-2 text-slate-400">{service.checkType}</td>
+                <td className="px-4 py-2 text-slate-600">{service.checkType}</td>
                 <td className="px-4 py-2">
                   <ServiceStateDot state={service.lastState} />
                 </td>
@@ -162,7 +162,7 @@ export default function ServicesPage() {
                   <button
                     type="button"
                     onClick={() => void remove(service)}
-                    className="text-xs text-slate-500 hover:text-red-300"
+                    className="text-xs text-slate-500 hover:text-red-700"
                   >
                     Retirer
                   </button>

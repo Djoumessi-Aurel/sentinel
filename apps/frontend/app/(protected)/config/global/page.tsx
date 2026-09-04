@@ -27,7 +27,7 @@ export default function GlobalConfigPage() {
       .catch((cause: unknown) => setError(cause instanceof ApiError ? cause.message : 'Chargement impossible'));
   }, []);
 
-  if (error) return <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>;
+  if (error) return <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   if (!config) return <p className="text-sm text-slate-500">Chargement…</p>;
 
   const setColor = (key: 'background' | 'text', value: string) =>
@@ -65,16 +65,16 @@ export default function GlobalConfigPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Configuration globale</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Ces valeurs servent de modèle aux <strong className="text-slate-400">nouvelles</strong> applications. Pour les
+          Ces valeurs servent de modèle aux <strong className="text-slate-600">nouvelles</strong> applications. Pour les
           appliquer aux applications déjà déclarées, utiliser{' '}
-          <Link href="/config/generalize" className="text-sky-400 hover:text-sky-300">
+          <Link href="/config/generalize" className="text-sky-700 hover:text-sky-900">
             Généraliser
           </Link>
           .
         </p>
       </div>
 
-      <section className="space-y-4 rounded-lg border border-white/10 bg-surface-raised p-4">
+      <section className="space-y-4 rounded-lg border border-slate-200 bg-surface-raised p-4">
         <h2 className="font-medium">Affichage des logs</h2>
 
         <div className="flex flex-wrap gap-4">
@@ -85,14 +85,14 @@ export default function GlobalConfigPage() {
         {/* Avertissement, pas blocage (docs/FRONTEND.md §5) : c'est un choix de
             l'utilisateur, mais une combinaison illisible se paie pendant un incident. */}
         {contrast < 4.5 && (
-          <p className="rounded border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+          <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Contraste texte/fond de {contrast.toFixed(1)}:1, sous le seuil WCAG AA de 4,5:1. Les logs risquent d’être
             difficiles à lire.
           </p>
         )}
 
         <div>
-          <h3 className="mb-2 text-sm text-slate-400">Couleur par niveau</h3>
+          <h3 className="mb-2 text-sm text-slate-600">Couleur par niveau</h3>
           <div className="flex flex-wrap gap-3">
             {[...new Set([...KNOWN_LOG_LEVELS, ...Object.keys(config.displayColors.levelColors)])].map((level) => (
               <ColorField
@@ -106,7 +106,7 @@ export default function GlobalConfigPage() {
         </div>
 
         <div
-          className="rounded border border-white/10 p-3 font-mono text-xs"
+          className="rounded border border-slate-200 p-3 font-mono text-xs"
           style={{ backgroundColor: config.displayColors.background, color: config.displayColors.text }}
         >
           <div>
@@ -122,11 +122,11 @@ export default function GlobalConfigPage() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-white/10 bg-surface-raised p-4">
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-surface-raised p-4">
         <h2 className="font-medium">Canaux d’alerte par défaut</h2>
         <div className="flex flex-wrap gap-4 text-sm">
           {(['visual', 'sound', 'email', 'sms'] as const).map((channel) => (
-            <label key={channel} className="flex items-center gap-2 text-slate-300">
+            <label key={channel} className="flex items-center gap-2 text-slate-700">
               <input
                 type="checkbox"
                 checked={config.alertChannelsDefault[channel]}
@@ -147,11 +147,11 @@ export default function GlobalConfigPage() {
         </p>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-white/10 bg-surface-raised p-4">
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-surface-raised p-4">
         <h2 className="font-medium">Vérification des services</h2>
         <div className="flex flex-wrap items-end gap-4 text-sm">
           <label>
-            <span className="mb-1 block text-slate-400">Intervalle par défaut (secondes)</span>
+            <span className="mb-1 block text-slate-600">Intervalle par défaut (secondes)</span>
             <input
               type="number"
               min={5}
@@ -166,10 +166,10 @@ export default function GlobalConfigPage() {
                   },
                 })
               }
-              className="w-28 rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+              className="w-28 rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
             />
           </label>
-          <label className="flex items-center gap-2 pb-1.5 text-slate-300">
+          <label className="flex items-center gap-2 pb-1.5 text-slate-700">
             <input
               type="checkbox"
               checked={config.serviceCheckDefaults.criticalByDefault}
@@ -185,12 +185,12 @@ export default function GlobalConfigPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-white/10 bg-surface-raised p-4">
+      <section className="rounded-lg border border-slate-200 bg-surface-raised p-4">
         <h2 className="mb-2 font-medium">Analyseurs créés pour toute nouvelle application</h2>
-        <ul className="space-y-1 text-sm text-slate-400">
+        <ul className="space-y-1 text-sm text-slate-600">
           {config.analyzerDefaults.map((analyzer) => (
             <li key={analyzer.type} className="flex gap-2">
-              <span className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-slate-300">{analyzer.type}</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{analyzer.type}</span>
               {analyzer.name}
             </li>
           ))}
@@ -202,11 +202,11 @@ export default function GlobalConfigPage() {
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
+          className="rounded bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-50"
         >
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
-        {message && <span className="text-sm text-emerald-400">{message}</span>}
+        {message && <span className="text-sm text-emerald-600">{message}</span>}
       </div>
     </div>
   );
@@ -215,18 +215,18 @@ export default function GlobalConfigPage() {
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="text-sm">
-      <span className="mb-1 block text-slate-400">{label}</span>
+      <span className="mb-1 block text-slate-600">{label}</span>
       <span className="flex items-center gap-2">
         <input
           type="color"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-8 w-10 cursor-pointer rounded border border-white/10 bg-transparent"
+          className="h-8 w-10 cursor-pointer rounded border border-slate-200 bg-transparent"
         />
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-24 rounded border border-white/10 bg-surface px-2 py-1 font-mono text-xs text-slate-300"
+          className="w-24 rounded border border-slate-200 bg-surface px-2 py-1 font-mono text-xs text-slate-700"
         />
       </span>
     </label>

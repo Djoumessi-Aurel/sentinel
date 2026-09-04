@@ -8,10 +8,10 @@ import type { ApplicationHealth } from '@sentinel/shared-types';
  * (docs/ALERTING.md §5).
  */
 const PRESENTATION: Record<ApplicationHealth, { label: string; classes: string; dot: string }> = {
-  ok: { label: 'Opérationnel', classes: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30', dot: 'bg-emerald-400' },
-  warning: { label: 'Avertissement', classes: 'bg-amber-500/10 text-amber-300 ring-amber-500/30', dot: 'bg-amber-400' },
-  critical: { label: 'Critique', classes: 'bg-red-500/10 text-red-300 ring-red-500/30', dot: 'bg-red-400' },
-  silent: { label: 'Silencieux', classes: 'bg-slate-500/10 text-slate-300 ring-slate-500/30', dot: 'bg-slate-400' },
+  ok: { label: 'Opérationnel', classes: 'bg-emerald-50 text-emerald-700 ring-emerald-300', dot: 'bg-emerald-400' },
+  warning: { label: 'Avertissement', classes: 'bg-amber-100 text-amber-800 ring-amber-300', dot: 'bg-amber-400' },
+  critical: { label: 'Critique', classes: 'bg-red-50 text-red-700 ring-red-300', dot: 'bg-red-400' },
+  silent: { label: 'Silencieux', classes: 'bg-slate-100 text-slate-700 ring-slate-300', dot: 'bg-slate-400' },
 };
 
 export function AppStatusBadge({ health, size = 'md' }: { health: ApplicationHealth; size?: 'sm' | 'md' }) {
@@ -33,7 +33,7 @@ export function ServiceStateDot({ state }: { state: string | null }) {
     state === 'active'
       ? 'bg-emerald-400'
       : state === null
-        ? 'bg-slate-500'
+        ? 'bg-slate-400'
         : state === 'inactive'
           ? 'bg-amber-400'
           : 'bg-red-400';
@@ -44,7 +44,7 @@ export function ServiceStateDot({ state }: { state: string | null }) {
   return (
     <span className="inline-flex items-center gap-1.5" title={label}>
       <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
-      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-xs text-slate-600">{label}</span>
     </span>
   );
 }

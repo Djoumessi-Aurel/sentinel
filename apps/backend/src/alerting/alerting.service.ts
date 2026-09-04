@@ -200,6 +200,7 @@ export class AlertingService {
 
     const payload: AlertTriggeredEvent = {
       applicationId: rule.applicationId,
+      applicationName: rule.application.name,
       alert: this.rowToDto(updated),
     };
     this.events.emit(INTERNAL_EVENTS.alertTriggered, payload);

@@ -90,22 +90,22 @@ export default function GeneralizePage() {
         <h1 className="text-xl font-semibold tracking-tight">Généraliser la configuration</h1>
         <p className="mt-1 text-sm text-slate-500">
           Écrase les couleurs d’affichage et les canaux d’alerte des applications cochées avec les valeurs de la{' '}
-          <Link href="/config/global" className="text-sky-400 hover:text-sky-300">
+          <Link href="/config/global" className="text-sky-700 hover:text-sky-900">
             configuration globale
           </Link>{' '}
           actuelle. L’opération est transactionnelle : toutes les applications cochées, ou aucune.
         </p>
       </div>
 
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300/90">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
         Les heures creuses, les règles d’analyse et les services surveillés ne sont pas concernés : ce sont des réglages
         propres à chaque application, pas des préférences d’affichage à propager.
       </div>
 
-      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>}
-      {result && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-300">{result}</div>}
+      {error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {result && <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-700">{result}</div>}
 
-      <div className="overflow-hidden rounded-lg border border-white/10">
+      <div className="overflow-hidden rounded-lg border border-slate-200">
         <table className="w-full text-sm">
           <thead className="bg-surface-raised text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -115,9 +115,9 @@ export default function GeneralizePage() {
               <th className="px-4 py-2 font-medium">Affichage</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-slate-200">
             {applications.map((app) => (
-              <tr key={app.id} className="bg-surface-raised/40">
+              <tr key={app.id} className="bg-surface-raised">
                 <td className="px-4 py-2">
                   <input type="checkbox" checked={selected.has(app.id)} onChange={() => toggle(app.id)} />
                 </td>
@@ -125,11 +125,11 @@ export default function GeneralizePage() {
                 <td className="px-4 py-2 text-slate-500">{app.serverName}</td>
                 <td className="px-4 py-2">
                   {diverged.has(app.id) ? (
-                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-300">
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
                       différent du global
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-600">aligné</span>
+                    <span className="text-xs text-slate-400">aligné</span>
                   )}
                 </td>
               </tr>
@@ -143,14 +143,14 @@ export default function GeneralizePage() {
           type="button"
           onClick={() => void apply()}
           disabled={busy || selected.size === 0 || !globalConfig}
-          className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-40"
+          className="rounded bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-40"
         >
           {busy ? 'Application…' : `Généraliser vers ${selected.size} application(s)`}
         </button>
         <button
           type="button"
           onClick={() => setSelected(new Set(applications.map((app) => app.id)))}
-          className="text-sm text-slate-500 hover:text-slate-300"
+          className="text-sm text-slate-500 hover:text-slate-700"
         >
           Tout sélectionner
         </button>

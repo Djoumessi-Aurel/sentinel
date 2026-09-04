@@ -50,13 +50,13 @@ export default function AlertsPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold tracking-tight">Alertes</h1>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-surface-raised p-4 text-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-surface-raised p-4 text-sm">
         <label>
-          <span className="mb-1 block text-slate-400">Application</span>
+          <span className="mb-1 block text-slate-600">Application</span>
           <select
             value={applicationId}
             onChange={(event) => setApplicationId(event.target.value)}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
           >
             <option value="">Toutes</option>
             {applications.map((app) => (
@@ -68,11 +68,11 @@ export default function AlertsPage() {
         </label>
 
         <label>
-          <span className="mb-1 block text-slate-400">Statut</span>
+          <span className="mb-1 block text-slate-600">Statut</span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as typeof status)}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
           >
             <option value="active">Actives</option>
             <option value="resolved">Résolues</option>
@@ -81,11 +81,11 @@ export default function AlertsPage() {
         </label>
 
         <label>
-          <span className="mb-1 block text-slate-400">Gravité</span>
+          <span className="mb-1 block text-slate-600">Gravité</span>
           <select
             value={severity}
             onChange={(event) => setSeverity(event.target.value as typeof severity)}
-            className="rounded border border-white/10 bg-surface px-3 py-1.5 text-slate-200"
+            className="rounded border border-slate-200 bg-surface px-3 py-1.5 text-slate-800"
           >
             <option value="">Toutes</option>
             <option value="critical">Critique</option>
@@ -96,11 +96,11 @@ export default function AlertsPage() {
         <span className="ml-auto text-xs text-slate-500">{total} alerte(s)</span>
       </div>
 
-      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>}
+      {error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       <div className="space-y-2">
         {alerts.length === 0 && (
-          <p className="rounded-lg border border-white/10 bg-surface-raised p-6 text-center text-sm text-slate-500">
+          <p className="rounded-lg border border-slate-200 bg-surface-raised p-6 text-center text-sm text-slate-500">
             Aucune alerte pour ces critères.
           </p>
         )}
@@ -110,25 +110,25 @@ export default function AlertsPage() {
             key={alert.id}
             className={`rounded-lg border bg-surface-raised p-3 ${
               alert.resolvedAt
-                ? 'border-white/10 opacity-70'
+                ? 'border-slate-200 opacity-70'
                 : alert.severity === 'critical'
-                  ? 'border-red-500/30'
-                  : 'border-amber-500/30'
+                  ? 'border-red-300'
+                  : 'border-amber-300'
             }`}
           >
             <div className="flex flex-wrap items-start gap-3">
               <span
                 className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold uppercase ${
-                  alert.severity === 'critical' ? 'bg-red-500/15 text-red-300' : 'bg-amber-500/15 text-amber-300'
+                  alert.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
                 }`}
               >
                 {alert.severity === 'critical' ? 'Critique' : 'Avert.'}
               </span>
 
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-slate-200">{alert.message}</p>
+                <p className="text-sm text-slate-800">{alert.message}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  <Link href={`/applications/${alert.applicationId}/live`} className="hover:text-sky-400">
+                  <Link href={`/applications/${alert.applicationId}/live`} className="hover:text-sky-700">
                     {names.get(alert.applicationId) ?? alert.applicationId}
                   </Link>
                   {' · déclenchée le '}
@@ -146,10 +146,10 @@ export default function AlertsPage() {
                         title={channel.detail}
                         className={`rounded px-1.5 py-0.5 text-[11px] ${
                           channel.status === 'sent'
-                            ? 'bg-emerald-500/10 text-emerald-300'
+                            ? 'bg-emerald-50 text-emerald-700'
                             : channel.status === 'failed'
-                              ? 'bg-red-500/10 text-red-300'
-                              : 'bg-slate-500/10 text-slate-400'
+                              ? 'bg-red-50 text-red-700'
+                              : 'bg-slate-100 text-slate-600'
                         }`}
                       >
                         {channel.channel} : {channel.status === 'sent' ? 'envoyé' : channel.status === 'failed' ? 'échec' : 'ignoré'}
@@ -163,7 +163,7 @@ export default function AlertsPage() {
                 <button
                   type="button"
                   onClick={() => void api.alerts.resolve(alert.id).then(load)}
-                  className="shrink-0 rounded border border-white/10 px-2 py-1 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  className="shrink-0 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-800"
                 >
                   Résoudre
                 </button>

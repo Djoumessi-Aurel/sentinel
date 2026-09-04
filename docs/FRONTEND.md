@@ -64,10 +64,34 @@ apps/frontend/
 1. Rejoint la room de l'appli (`join`) au montage, la quitte au démontage.
 2. Écoute `log:new` et `alert:new` et met à jour un state local consommé par
    `LogViewer` et `AppStatusBadge`.
-3. Déclenche le son d'alerte côté client (fichier audio local, pas de
-   dépendance externe) si `alert:new` concerne une appli dont
-   `AppConfig.alertChannels.sound` est actif — logique **entièrement
-   côté client**, le backend ne "sait" pas jouer de son, il notifie juste.
+3. Le son n'est **pas** déclenché ici mais par `AlertCenter` (voir §3.1) :
+   le brancher aussi sur cette page ferait sonner deux fois la même alerte.
+
+### 3.1 `AlertCenter` — son et bandeau, sur toutes les pages
+
+Monté une seule fois dans `app/(protected)/layout.tsx`, il s'abonne au flux
+global d'alertes (`joinGlobalAlerts`, voir `API.md §8`) et déclenche la sirène
+quelle que soit la page affichée — y compris sur la télévision de l'open space,
+qui reste sur le tableau de bord.
+
+Deux contraintes navigateur à ne jamais perdre de vue :
+
+- **Aucun son n'est autorisé avant un geste utilisateur.** Un
+  `AudioContext` créé sans clic préalable reste suspendu, et la sirène échoue
+  alors *en silence* — le pire comportement possible pour un outil de
+  supervision. D'où le bandeau « Activer le son », affiché tant que le son n'est
+  pas opérationnel, et un bip de confirmation immédiat à l'activation.
+- **La préférence est mémorisée** (`localStorage`), pour qu'un rafraîchissement
+  de la page sur l'écran mural ne remette pas la surveillance sonore en veille.
+
+Le son lui-même est **synthétisé** par l'API Web Audio (`lib/alert-siren.ts`) :
+aucun fichier à héberger, et il reste disponible même si le backend est tombé —
+précisément le moment où on en a besoin. Une alerte critique produit un
+deux-tons alterné de 8 secondes, en dents de scie, à volume élevé : il doit
+faire lever la tête à tout le plateau, pas ressembler à une notification de
+téléphone. Un avertissement reste bref et discret. Les caractéristiques
+(durée, alternance, timbre, amplitude) sont verrouillées par
+`test/alert-siren.test.mts`.
 
 ## 4. Dashboard (vue d'ensemble)
 

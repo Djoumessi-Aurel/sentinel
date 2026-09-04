@@ -124,3 +124,46 @@ export function useApplicationRealtime(applicationId: string | null, onAlert?: (
 
   return { connected, entries, alerts, health, serviceChanges, clear: () => setEntries([]) };
 }
+
+
+/**
+ * Abonnement au flux d'alertes de **tout le parc**.
+ *
+ * Complète `useApplicationRealtime`, qui ne couvre qu'une application : monté
+ * dans le layout, ce hook garantit qu'une alerte est signalée quelle que soit la
+ * page affichée — tableau de bord, liste des alertes, ou écran mural.
+ */
+export function useGlobalAlerts(onAlert: (event: AlertNewEvent) => void): { connected: boolean } {
+  const [connected, setConnected] = useState(false);
+
+  // Référence plutôt que dépendance : un callback recréé à chaque rendu
+  // provoquerait un cycle abonnement/désabonnement permanent.
+  const onAlertRef = useRef(onAlert);
+  onAlertRef.current = onAlert;
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleConnect = () => {
+      setConnected(true);
+      socket.emit('joinGlobalAlerts');
+    };
+    const handleDisconnect = () => setConnected(false);
+    const handleAlert = (payload: AlertNewEvent) => onAlertRef.current(payload);
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('alert:new', handleAlert);
+
+    if (socket.connected) handleConnect();
+
+    return () => {
+      socket.emit('leaveGlobalAlerts');
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('alert:new', handleAlert);
+    };
+  }, []);
+
+  return { connected };
+}

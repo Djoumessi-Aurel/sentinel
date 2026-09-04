@@ -25,7 +25,8 @@
     "dev:mysql": "node scripts/dev-mysql.mjs start",
     "dev:mysql:stop": "node scripts/dev-mysql.mjs stop",
     "dev:mysql:status": "node scripts/dev-mysql.mjs status",
-    "simulate": "node scripts/simulate-agent.mjs"
+    "simulate": "node scripts/simulate-agent.mjs",
+    "db:refresh-colors": "node scripts/refresh-display-colors.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

@@ -53,9 +53,9 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
+      <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
         <p className="font-medium">{error}</p>
-        <p className="mt-1 text-red-300/70">Vérifier que le backend est démarré : npm run dev:backend</p>
+        <p className="mt-1 text-red-600">Vérifier que le backend est démarré : npm run dev:backend</p>
       </div>
     );
   }
@@ -71,15 +71,15 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex gap-2 text-sm">
-          <Counter label="Critique" value={counts.critical} tone="text-red-300 ring-red-500/30 bg-red-500/5" />
-          <Counter label="Avertissement" value={counts.warning} tone="text-amber-300 ring-amber-500/30 bg-amber-500/5" />
-          <Counter label="Opérationnel" value={counts.ok} tone="text-emerald-300 ring-emerald-500/30 bg-emerald-500/5" />
+          <Counter label="Critique" value={counts.critical} tone="text-red-700 ring-red-300 bg-red-50" />
+          <Counter label="Avertissement" value={counts.warning} tone="text-amber-800 ring-amber-300 bg-amber-50" />
+          <Counter label="Opérationnel" value={counts.ok} tone="text-emerald-700 ring-emerald-300 bg-emerald-50" />
         </div>
       </div>
 
       {applications.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-surface-raised p-8 text-center text-sm text-slate-500">
-          Aucune application déclarée. Lancer <code className="text-slate-300">npm run db:seed</code> pour charger le parc.
+        <div className="rounded-lg border border-slate-200 bg-surface-raised p-8 text-center text-sm text-slate-500">
+          Aucune application déclarée. Lancer <code className="text-slate-700">npm run db:seed</code> pour charger le parc.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -87,13 +87,20 @@ export default function DashboardPage() {
             <Link
               key={app.id}
               href={`/applications/${app.id}/live`}
-              className={`group rounded-lg border bg-surface-raised p-4 transition hover:border-sky-500/40 ${
-                app.health === 'critical' ? 'border-red-500/30' : 'border-white/10'
+              // L'écran est lu de loin, dans un open space : une carte critique doit
+              // se distinguer par sa couleur de fond et l'épaisseur de son cadre,
+              // pas seulement par un badge de quelques millimètres.
+              className={`group rounded-lg border-2 p-4 transition hover:border-sky-400 ${
+                app.health === 'critical'
+                  ? 'border-red-400 bg-red-50'
+                  : app.health === 'warning'
+                    ? 'border-amber-400 bg-amber-50'
+                    : 'border-slate-200 bg-surface-raised'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="truncate font-medium group-hover:text-sky-300">{app.name}</h2>
+                  <h2 className="truncate font-medium group-hover:text-sky-700">{app.name}</h2>
                   <p className="mt-0.5 truncate text-xs text-slate-500">
                     {app.serverName} · {app.type}
                   </p>
@@ -131,7 +138,7 @@ function Metric({ label, value, warn }: { label: string; value: string | number;
   return (
     <div>
       <dt className="text-slate-500">{label}</dt>
-      <dd className={`mt-0.5 font-medium tabular-nums ${warn ? 'text-amber-300' : 'text-slate-300'}`}>{value}</dd>
+      <dd className={`mt-0.5 font-medium tabular-nums ${warn ? 'text-amber-800' : 'text-slate-700'}`}>{value}</dd>
     </div>
   );
 }

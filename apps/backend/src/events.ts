@@ -30,6 +30,7 @@ export interface ServiceStateChangedEvent {
 
 export interface AlertTriggeredEvent {
   applicationId: string;
+  applicationName: string;
   alert: AlertEvent;
 }
 

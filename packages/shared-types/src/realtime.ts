@@ -9,6 +9,17 @@ export const REALTIME_NAMESPACE = '/realtime';
 /** Nom de la room Socket.IO d'une application. */
 export const applicationRoom = (applicationId: string): string => `application:${applicationId}`;
 
+/**
+ * Room recevant les alertes de **toutes** les applications.
+ *
+ * Le filtrage par application vaut pour les *logs*, dont le volume interdit une
+ * diffusion globale. Les alertes, elles, sont rares — quelques dizaines par jour
+ * — et doivent être entendues quel que soit l'écran affiché : un poste ouvert
+ * sur le tableau de bord, ou une télévision d'open space, doit sonner quand
+ * n'importe quelle application passe en critique.
+ */
+export const GLOBAL_ALERTS_ROOM = 'alerts:all';
+
 export interface JoinPayload {
   applicationId: string;
 }
@@ -20,6 +31,8 @@ export interface LogNewEvent {
 
 export interface AlertNewEvent {
   applicationId: string;
+  /** Nom de l'application : le flux global est lu hors du contexte d'une appli. */
+  applicationName: string;
   alert: AlertEvent;
   /** Statut agrégé recalculé, pour que le badge se mette à jour sans requête REST. */
   health: ApplicationHealth;
@@ -52,4 +65,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   join: (payload: JoinPayload) => void;
   leave: (payload: JoinPayload) => void;
+  /** Abonnement au flux d'alertes de tout le parc. */
+  joinGlobalAlerts: () => void;
+  leaveGlobalAlerts: () => void;
 }

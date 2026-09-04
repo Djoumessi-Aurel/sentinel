@@ -34,9 +34,10 @@ export default function LivePage() {
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const playAlertSound = useAlertSound(config?.alertChannels.sound ?? false);
-
-  const realtime = useApplicationRealtime(applicationId, playAlertSound);
+  // Pas de son ici : la sirène est déclenchée par `AlertCenter`, monté une
+  // seule fois dans le layout. La brancher aussi sur cette page ferait sonner
+  // deux fois la même alerte quand elle concerne l'application affichée.
+  const realtime = useApplicationRealtime(applicationId);
 
   const load = useCallback(async () => {
     if (!applicationId) return;
@@ -97,7 +98,7 @@ export default function LivePage() {
   const health = realtime.health ?? (activeAlerts.length > 0 ? 'critical' : 'ok');
 
   if (error) {
-    return <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>;
+    return <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   }
 
   if (!application || !config) {
@@ -111,7 +112,7 @@ export default function LivePage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-300">
+            <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-700">
               ← Parc
             </Link>
             <h1 className="text-xl font-semibold tracking-tight">{application.name}</h1>
@@ -123,13 +124,13 @@ export default function LivePage() {
         <div className="flex items-center gap-2 text-sm">
           <Link
             href={`/applications/${application.id}/services`}
-            className="rounded border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5"
+            className="rounded border border-slate-200 px-3 py-1.5 text-slate-700 hover:bg-slate-100"
           >
             Services
           </Link>
           <Link
             href={`/applications/${application.id}/history`}
-            className="rounded border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5"
+            className="rounded border border-slate-200 px-3 py-1.5 text-slate-700 hover:bg-slate-100"
           >
             Historique
           </Link>
@@ -143,8 +144,8 @@ export default function LivePage() {
               key={alert.id}
               className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
                 alert.severity === 'critical'
-                  ? 'border-red-500/30 bg-red-500/5 text-red-200'
-                  : 'border-amber-500/30 bg-amber-500/5 text-amber-200'
+                  ? 'border-red-300 bg-red-50 text-red-800'
+                  : 'border-amber-300 bg-amber-50 text-amber-900'
               }`}
             >
               <span className="mt-0.5 shrink-0 font-semibold uppercase tracking-wide">
@@ -154,7 +155,7 @@ export default function LivePage() {
               <button
                 type="button"
                 onClick={() => void api.alerts.resolve(alert.id).then(load)}
-                className="shrink-0 rounded border border-current/30 px-2 py-0.5 text-xs opacity-80 hover:opacity-100"
+                className="shrink-0 rounded border border-current bg-white/70 px-2.5 py-1 text-xs font-medium hover:bg-white"
               >
                 Résoudre
               </button>
@@ -164,13 +165,13 @@ export default function LivePage() {
       )}
 
       {services && services.services.length > 0 && (
-        <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-white/10 bg-surface-raised px-4 py-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-slate-200 bg-surface-raised px-4 py-3">
           {services.services.map((service) => (
             <div key={service.id} className="flex items-center gap-2 text-sm">
               <ServiceStateDot state={service.lastState} />
-              <span className={service.critical ? 'text-slate-300' : 'text-slate-500'}>
+              <span className={service.critical ? 'text-slate-700' : 'text-slate-500'}>
                 {service.name}
-                {!service.critical && <span className="ml-1 text-xs text-slate-600">(non critique)</span>}
+                {!service.critical && <span className="ml-1 text-xs text-slate-400">(non critique)</span>}
               </span>
             </div>
           ))}
@@ -179,16 +180,16 @@ export default function LivePage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <span
-          className={`inline-flex items-center gap-1.5 text-xs ${realtime.connected ? 'text-emerald-400' : 'text-slate-500'}`}
+          className={`inline-flex items-center gap-1.5 text-xs ${realtime.connected ? 'text-emerald-600' : 'text-slate-500'}`}
         >
-          <span className={`h-1.5 w-1.5 rounded-full ${realtime.connected ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${realtime.connected ? 'bg-emerald-400' : 'bg-slate-300'}`} />
           {realtime.connected ? 'Flux temps réel connecté' : 'Flux déconnecté'}
         </span>
 
         <select
           value={levelFilter}
           onChange={(event) => setLevelFilter(event.target.value)}
-          className="rounded border border-white/10 bg-surface-raised px-2 py-1 text-sm text-slate-300"
+          className="rounded border border-slate-200 bg-surface-raised px-2 py-1 text-sm text-slate-700"
         >
           <option value="">Tous les niveaux</option>
           {levels.map((level) => (
@@ -202,7 +203,7 @@ export default function LivePage() {
           type="button"
           onClick={() => setPaused((current) => !current)}
           className={`rounded border px-3 py-1 text-sm ${
-            paused ? 'border-amber-500/40 bg-amber-500/10 text-amber-300' : 'border-white/10 text-slate-300 hover:bg-white/5'
+            paused ? 'border-amber-400 bg-amber-100 text-amber-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'
           }`}
         >
           {paused ? 'Reprendre le défilement' : 'Figer'}
@@ -213,42 +214,5 @@ export default function LivePage() {
 
       <LogViewer entries={entries} colors={colors} />
     </div>
-  );
-}
-
-/**
- * Son d'alerte, joué **entièrement côté client** : le backend notifie, le
- * navigateur décide (docs/ALERTING.md §2, docs/FRONTEND.md §3).
- * Le son est synthétisé via l'API Web Audio, sans fichier ni dépendance externe.
- */
-function useAlertSound(enabled: boolean): (alert: AlertEvent) => void {
-  const contextRef = useRef<AudioContext | null>(null);
-
-  return useCallback(
-    (alert: AlertEvent) => {
-      if (!enabled || typeof window === 'undefined') return;
-      try {
-        contextRef.current ??= new AudioContext();
-        const context = contextRef.current;
-        // Les navigateurs suspendent le contexte tant que l'utilisateur n'a pas
-        // interagi avec la page : on tente la reprise sans en faire une erreur.
-        void context.resume();
-
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.value = alert.severity === 'critical' ? 880 : 587;
-        gain.gain.setValueAtTime(0.0001, context.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.5);
-
-        oscillator.connect(gain).connect(context.destination);
-        oscillator.start();
-        oscillator.stop(context.currentTime + 0.5);
-      } catch {
-        // Un son impossible à jouer ne doit jamais empêcher l'affichage de l'alerte.
-      }
-    },
-    [enabled],
   );
 }

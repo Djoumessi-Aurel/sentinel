@@ -64,7 +64,7 @@ export function LogViewer({ entries, colors, height = 560, emptyMessage }: LogVi
         return (
           <div
             style={style}
-            className="flex gap-3 border-b border-white/5 px-3 font-mono text-xs leading-[26px] hover:bg-white/5"
+            className="flex gap-3 border-b border-slate-100 px-3 font-mono text-xs leading-[26px] hover:bg-slate-100"
           >
             <span className="shrink-0 select-none tabular-nums text-slate-500">{formatTime(entry.timestamp)}</span>
             <span
@@ -78,7 +78,7 @@ export function LogViewer({ entries, colors, height = 560, emptyMessage }: LogVi
                   d'un système tiers et peut être forgée (docs/SECURITY.md A03). */}
               <span className="block truncate">{firstLine}</span>
               {isMultiline && isExpanded && (
-                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2 text-[11px] text-slate-400">
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-100 p-2 text-[11px] text-slate-600">
                   {rest.join('\n')}
                 </pre>
               )}
@@ -87,7 +87,7 @@ export function LogViewer({ entries, colors, height = 560, emptyMessage }: LogVi
               <button
                 type="button"
                 onClick={() => toggle(entry.id)}
-                className="shrink-0 self-start text-[11px] text-sky-400 hover:text-sky-300"
+                className="shrink-0 self-start text-[11px] text-sky-700 hover:text-sky-900"
               >
                 {isExpanded ? 'réduire' : `+${rest.length} ligne(s)`}
               </button>
@@ -101,7 +101,7 @@ export function LogViewer({ entries, colors, height = 560, emptyMessage }: LogVi
   if (entries.length === 0) {
     return (
       <div
-        className="flex items-center justify-center rounded-lg border border-white/10 text-sm text-slate-500"
+        className="flex items-center justify-center rounded-lg border border-slate-200 text-sm text-slate-500"
         style={{ height, backgroundColor: colors.background }}
       >
         {emptyMessage ?? 'Aucun log pour le moment.'}
@@ -110,7 +110,7 @@ export function LogViewer({ entries, colors, height = 560, emptyMessage }: LogVi
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10" style={{ backgroundColor: colors.background }}>
+    <div className="overflow-hidden rounded-lg border border-slate-200" style={{ backgroundColor: colors.background }}>
       <FixedSizeList
         height={height}
         width="100%"
